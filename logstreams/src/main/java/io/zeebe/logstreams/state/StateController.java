@@ -23,6 +23,7 @@ import java.io.File;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BiConsumer;
 import org.agrona.CloseHelper;
 import org.agrona.MutableDirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
@@ -31,12 +32,14 @@ import org.rocksdb.BloomFilter;
 import org.rocksdb.Cache;
 import org.rocksdb.ChecksumType;
 import org.rocksdb.ClockCache;
+import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.Env;
 import org.rocksdb.Filter;
 import org.rocksdb.MemTableConfig;
 import org.rocksdb.Options;
 import org.rocksdb.RocksDB;
 import org.rocksdb.RocksDBException;
+import org.rocksdb.RocksIterator;
 import org.rocksdb.SkipListMemTableConfig;
 import org.rocksdb.TableFormatConfig;
 import org.slf4j.Logger;
@@ -65,14 +68,13 @@ public class StateController implements AutoCloseable {
     RocksDB.loadLibrary();
   }
 
-  public RocksDB open(final File dbDirectory, boolean reopen) throws Exception {
+  public RocksDB open(final File dbDirectory, final boolean reopen) throws Exception {
     if (!isOpened) {
       try {
         this.dbDirectory = dbDirectory;
         final Options options =
             createOptions().setErrorIfExists(!reopen).setCreateIfMissing(!reopen);
         closeables.add(options);
-
         db = openDB(options);
         isOpened = true;
       } catch (final RocksDBException ex) {
@@ -116,7 +118,7 @@ public class StateController implements AutoCloseable {
     return Env.getDefault();
   }
 
-  protected void ensureIsOpened(String operation) {
+  protected void ensureIsOpened(final String operation) {
     if (!isOpened()) {
       final String message =
           String.format("%s cannot be executed unless database is opened", operation);
@@ -137,7 +139,7 @@ public class StateController implements AutoCloseable {
       close();
     }
 
-    try (Options options = createOptions()) {
+    try (final Options options = createOptions()) {
       RocksDB.destroyDB(dbDirectory.toString(), options);
     } finally {
       closeables.forEach(CloseHelper::quietClose);
@@ -163,15 +165,15 @@ public class StateController implements AutoCloseable {
     return db;
   }
 
-  private void setKey(long key) {
+  private void setKey(final long key) {
     dbLongBuffer.putLong(0, key, ByteOrder.LITTLE_ENDIAN);
   }
 
-  public void put(long key, byte[] valueBuffer) {
+  public void put(final long key, final byte[] valueBuffer) {
     setKey(key);
     try {
       db.put(dbLongBuffer.byteArray(), valueBuffer);
-    } catch (RocksDBException e) {
+    } catch (final RocksDBException e) {
       LangUtil.rethrowUnchecked(e);
     }
   }
@@ -182,7 +184,7 @@ public class StateController implements AutoCloseable {
    * @param key
    * @param valueWriter
    */
-  public void put(long key, BufferWriter valueWriter) {
+  public void put(final long key, final BufferWriter valueWriter) {
     setKey(key);
     final int length = valueWriter.getLength();
     final byte[] bytes = new byte[length];
@@ -192,32 +194,32 @@ public class StateController implements AutoCloseable {
 
     try {
       db.put(dbLongBuffer.byteArray(), bytes);
-    } catch (RocksDBException e) {
+    } catch (final RocksDBException e) {
       LangUtil.rethrowUnchecked(e);
     }
   }
 
-  public void put(byte[] key, byte[] valueBuffer) {
+  public void put(final byte[] key, final byte[] valueBuffer) {
     try {
       db.put(key, valueBuffer);
-    } catch (RocksDBException e) {
+    } catch (final RocksDBException e) {
       LangUtil.rethrowUnchecked(e);
     }
   }
 
-  public void delete(long key) {
+  public void delete(final long key) {
     setKey(key);
     try {
       db.delete(dbLongBuffer.byteArray());
-    } catch (RocksDBException e) {
+    } catch (final RocksDBException e) {
       LangUtil.rethrowUnchecked(e);
     }
   }
 
-  public void delete(byte[] key) {
+  public void delete(final byte[] key) {
     try {
       db.delete(key);
-    } catch (RocksDBException e) {
+    } catch (final RocksDBException e) {
       LangUtil.rethrowUnchecked(e);
     }
   }
@@ -228,20 +230,20 @@ public class StateController implements AutoCloseable {
    * @param key
    * @return
    */
-  public byte[] get(long key) {
+  public byte[] get(final long key) {
     setKey(key);
 
     byte[] bytes = null;
     try {
       bytes = getDb().get(dbLongBuffer.byteArray());
-    } catch (RocksDBException e) {
+    } catch (final RocksDBException e) {
       LangUtil.rethrowUnchecked(e);
     }
 
     return bytes;
   }
 
-  public boolean tryGet(long key, byte[] valueBuffer) {
+  public boolean tryGet(final long key, final byte[] valueBuffer) {
     setKey(key);
 
     return tryGet(dbLongBuffer.byteArray(), valueBuffer);
@@ -253,10 +255,41 @@ public class StateController implements AutoCloseable {
     try {
       final int bytesRead = getDb().get(keyBuffer, valueBuffer);
       found = bytesRead == valueBuffer.length;
-    } catch (RocksDBException e) {
+    } catch (final RocksDBException e) {
       LangUtil.rethrowUnchecked(e);
     }
 
     return found;
+  }
+
+  public void foreach(
+      final ColumnFamilyHandle handle, final BiConsumer<byte[], byte[]> keyValueConsumer) {
+    try (final RocksIterator rocksIterator = getDb().newIterator(handle)) {
+      rocksIterator.seekToFirst();
+      while (rocksIterator.isValid()) {
+        keyValueConsumer.accept(rocksIterator.key(), rocksIterator.value());
+        rocksIterator.next();
+      }
+    }
+  }
+
+  public void foreach(final byte[] startAt, final BiConsumer<byte[], byte[]> keyValueConsumer) {
+    try (final RocksIterator rocksIterator = getDb().newIterator()) {
+      rocksIterator.seek(startAt);
+      while (rocksIterator.isValid()) {
+        keyValueConsumer.accept(rocksIterator.key(), rocksIterator.value());
+        rocksIterator.next();
+      }
+    }
+  }
+
+  public void foreach(final BiConsumer<byte[], byte[]> keyValueConsumer) {
+    try (final RocksIterator rocksIterator = getDb().newIterator()) {
+      rocksIterator.seekToFirst();
+      while (rocksIterator.isValid()) {
+        keyValueConsumer.accept(rocksIterator.key(), rocksIterator.value());
+        rocksIterator.next();
+      }
+    }
   }
 }
