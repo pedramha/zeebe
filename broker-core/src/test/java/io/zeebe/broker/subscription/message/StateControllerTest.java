@@ -111,6 +111,7 @@ public class StateControllerTest {
     stateController.put("name13223".getBytes(), "bar".getBytes());
     stateController.put("name123".getBytes(), "bar".getBytes());
     stateController.put("namecorrelation123".getBytes(), "bar".getBytes());
+    stateController.put("namecorrelation1234".getBytes(), "bar".getBytes());
     stateController.put("namecorrelation2323".getBytes(), "bar".getBytes());
     stateController.put("namecorrelation3243".getBytes(), "bar".getBytes());
     stateController.put("namecorrelation14223".getBytes(), "bar".getBytes());
@@ -128,6 +129,7 @@ public class StateControllerTest {
         .extracting(t -> t.getLeft())
         .containsExactly(
             "namecorrelation123".getBytes(),
+            "namecorrelation1234".getBytes(),
             "namecorrelation14223".getBytes(),
             "namecorrelation2323".getBytes(),
             "namecorrelation3243".getBytes());

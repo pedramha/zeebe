@@ -27,9 +27,14 @@ public class RocksDbInternal {
 
   static Method putMethod;
   static Method putWithHandle;
+
   static Method getWithHandle;
   static Method getMethod;
+
   static Method existMethod;
+
+  static Method removeMethod;
+  static Method removeWithHandle;
 
   static {
     RocksDB.loadLibrary();
@@ -44,12 +49,16 @@ public class RocksDbInternal {
   private static void resolveInternalMethods() throws NoSuchFieldException, NoSuchMethodException {
     nativeHandles();
 
-    getMethod();
-    getWithHandle();
-    existMethod();
-
     putMethod();
     putWithHandle();
+
+    getMethod();
+    getWithHandle();
+
+    existMethod();
+
+    removeMethod();
+    removeWithHandle();
   }
 
   private static void nativeHandles() throws NoSuchFieldException {
@@ -58,6 +67,35 @@ public class RocksDbInternal {
 
     rocksDbNativeHandle = RocksDB.class.getSuperclass().getDeclaredField("nativeHandle_");
     rocksDbNativeHandle.setAccessible(true);
+  }
+
+  private static void putMethod() throws NoSuchMethodException {
+    putMethod =
+        RocksDB.class.getDeclaredMethod(
+            "put",
+            Long.TYPE,
+            byte[].class,
+            Integer.TYPE,
+            Integer.TYPE,
+            byte[].class,
+            Integer.TYPE,
+            Integer.TYPE);
+    putMethod.setAccessible(true);
+  }
+
+  private static void putWithHandle() throws NoSuchMethodException {
+    putWithHandle =
+        RocksDB.class.getDeclaredMethod(
+            "put",
+            Long.TYPE,
+            byte[].class,
+            Integer.TYPE,
+            Integer.TYPE,
+            byte[].class,
+            Integer.TYPE,
+            Integer.TYPE,
+            Long.TYPE);
+    putWithHandle.setAccessible(true);
   }
 
   private static void getMethod() throws NoSuchMethodException {
@@ -102,32 +140,17 @@ public class RocksDbInternal {
     existMethod.setAccessible(true);
   }
 
-  private static void putMethod() throws NoSuchMethodException {
-    putMethod =
+  private static void removeMethod() throws NoSuchMethodException {
+    removeMethod =
         RocksDB.class.getDeclaredMethod(
-            "put",
-            Long.TYPE,
-            byte[].class,
-            Integer.TYPE,
-            Integer.TYPE,
-            byte[].class,
-            Integer.TYPE,
-            Integer.TYPE);
-    putMethod.setAccessible(true);
+            "delete", Long.TYPE, byte[].class, Integer.TYPE, Integer.TYPE);
+    removeMethod.setAccessible(true);
   }
 
-  private static void putWithHandle() throws NoSuchMethodException {
-    putWithHandle =
+  private static void removeWithHandle() throws NoSuchMethodException {
+    removeWithHandle =
         RocksDB.class.getDeclaredMethod(
-            "put",
-            Long.TYPE,
-            byte[].class,
-            Integer.TYPE,
-            Integer.TYPE,
-            byte[].class,
-            Integer.TYPE,
-            Integer.TYPE,
-            Long.TYPE);
-    putWithHandle.setAccessible(true);
+            "delete", Long.TYPE, byte[].class, Integer.TYPE, Integer.TYPE, Long.TYPE);
+    removeWithHandle.setAccessible(true);
   }
 }

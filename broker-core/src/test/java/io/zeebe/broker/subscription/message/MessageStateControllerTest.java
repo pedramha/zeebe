@@ -249,7 +249,7 @@ public class MessageStateControllerTest {
     final MessageSubscription subscription =
         new MessageSubscription("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1, 1234);
     final MessageSubscription subscription2 =
-        new MessageSubscription("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1, 4567);
+        new MessageSubscription("otherName", "otherKey", "{\"foo\":\"bar\"}", 1, 4567);
     final Message message = new Message("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1234);
 
     stateController.put(message);

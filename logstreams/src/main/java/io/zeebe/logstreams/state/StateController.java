@@ -387,6 +387,27 @@ public class StateController implements AutoCloseable {
     }
   }
 
+  public void remove(final byte[] key, final int offset, final int length)
+  {
+    try {
+      RocksDbInternal.removeWithHandle.invoke(
+        db, nativeHandle_, key, offset, length);
+    } catch (final Exception ex) {
+      throw new RuntimeException(ex);
+    }
+  }
+
+  public void remove(ColumnFamilyHandle handle, final byte[] key, final int offset, final int length)
+  {
+    try {
+      final long nativeHandle = (long) RocksDbInternal.columnFamilyHandle.get(handle);
+      RocksDbInternal.removeWithHandle.invoke(
+          db, nativeHandle_, key, offset, length, nativeHandle);
+    } catch (final Exception ex) {
+      throw new RuntimeException(ex);
+    }
+  }
+
   public void foreach(
       final ColumnFamilyHandle handle, final BiConsumer<byte[], byte[]> keyValueConsumer) {
     try (final RocksIterator rocksIterator = getDb().newIterator(handle)) {
