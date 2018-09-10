@@ -192,15 +192,33 @@ public class StateController implements AutoCloseable {
       final byte[] value,
       final int valueOffset,
       final int valueLength) {
+    setKey(key);
+    put(
+        handle,
+        dbLongBuffer.byteArray(),
+        0,
+        dbLongBuffer.capacity(),
+        value,
+        valueOffset,
+        valueLength);
+  }
+
+  public void put(
+      final ColumnFamilyHandle handle,
+      final byte[] key,
+      final int keyOffset,
+      final int keyLength,
+      final byte[] value,
+      final int valueOffset,
+      final int valueLength) {
     try {
-      setKey(key);
       final long columnFamilyHandle = (long) RocksDbInternal.columnFamilyHandle.get(handle);
       RocksDbInternal.putWithHandle.invoke(
           db,
           nativeHandle_,
-          dbLongBuffer.byteArray(),
-          0,
-          dbLongBuffer.capacity(),
+          key,
+          keyOffset,
+          keyLength,
           value,
           valueOffset,
           valueLength,
@@ -329,6 +347,18 @@ public class StateController implements AutoCloseable {
     }
 
     return found;
+  }
+
+  public boolean exist(
+      final ColumnFamilyHandle handle, final byte[] key, final int offset, final int length) {
+    try {
+      final long nativeHandle = (long) RocksDbInternal.columnFamilyHandle.get(handle);
+      return (boolean)
+          RocksDbInternal.existMethod.invoke(
+              db, nativeHandle_, key, offset, length, nativeHandle, new StringBuilder());
+    } catch (final Exception ex) {
+      throw new RuntimeException(ex);
+    }
   }
 
   public void foreach(

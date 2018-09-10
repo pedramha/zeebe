@@ -1,3 +1,20 @@
+/*
+ * Zeebe Broker Core
+ * Copyright © 2017 camunda services GmbH (info@camunda.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package io.zeebe.broker.subscription.message;
 
 import io.zeebe.logstreams.state.StateController;
@@ -13,12 +30,14 @@ import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.RocksDB;
 
 public class MessageStateController extends StateController {
-  private static final byte[] COLUMN_FAMILY_NAME = "timeToLive".getBytes();
+  private static final byte[] TIME_TO_LIVE_NAME = "timeToLive".getBytes();
+  private static final byte[] MESSAGE_ID_NAME = "messageId".getBytes();
 
   private final UnsafeBuffer longBuffer = new UnsafeBuffer(0, 0);
   private final UnsafeBuffer iterateKeyBuffer = new UnsafeBuffer(0, 0);
 
   private ColumnFamilyHandle timeToLiveHandle;
+  private ColumnFamilyHandle messageIdHandle;
   private ExpandableArrayBuffer keyBuffer;
   private ExpandableArrayBuffer valueBuffer;
 
@@ -27,17 +46,29 @@ public class MessageStateController extends StateController {
     final RocksDB rocksDB = super.open(dbDirectory, reopen);
     keyBuffer = new ExpandableArrayBuffer();
     valueBuffer = new ExpandableArrayBuffer();
-    timeToLiveHandle = rocksDB.createColumnFamily(new ColumnFamilyDescriptor(COLUMN_FAMILY_NAME));
+    timeToLiveHandle = rocksDB.createColumnFamily(new ColumnFamilyDescriptor(TIME_TO_LIVE_NAME));
+    messageIdHandle = rocksDB.createColumnFamily(new ColumnFamilyDescriptor(MESSAGE_ID_NAME));
     return rocksDB;
   }
 
+  private static final byte[] EXISTANCE = new byte[] {1};
+
   public void put(final Message message) {
-    final int offset = wrapKey(message.getName(), message.getCorrelationKey());
+    int offset = wrapKey(message.getName(), message.getCorrelationKey());
 
     message.write(valueBuffer, 0);
 
     put(keyBuffer.byteArray(), 0, offset, valueBuffer.byteArray(), 0, message.getLength());
     put(timeToLiveHandle, message.getDeadline(), keyBuffer.byteArray(), 0, offset);
+
+    final DirectBuffer messageId = message.getId();
+    final int messageIdLength = messageId.capacity();
+    if (messageIdLength > 0) {
+      keyBuffer.putBytes(offset, messageId, 0, messageIdLength);
+      offset += messageIdLength;
+
+      put(messageIdHandle, keyBuffer.byteArray(), 0, offset, EXISTANCE, 0, EXISTANCE.length);
+    }
   }
 
   private int wrapKey(final DirectBuffer messageName, final DirectBuffer correlationKey) {
@@ -86,5 +117,14 @@ public class MessageStateController extends StateController {
           }
         });
     return messageList;
+  }
+
+  public boolean exist(final Message message) {
+    int offset = wrapKey(message.getName(), message.getCorrelationKey());
+    final int idLength = message.getId().capacity();
+    keyBuffer.putBytes(offset, message.getId(), 0, idLength);
+    offset += idLength;
+
+    return exist(messageIdHandle, keyBuffer.byteArray(), 0, offset);
   }
 }
