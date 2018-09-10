@@ -64,6 +64,8 @@ public class StateController implements AutoCloseable {
   protected File dbDirectory;
   protected List<AutoCloseable> closeables = new ArrayList<>();
 
+  private long nativeHandle_;
+
   static {
     RocksDB.loadLibrary();
   }
@@ -77,6 +79,8 @@ public class StateController implements AutoCloseable {
         closeables.add(options);
         db = openDB(options);
         isOpened = true;
+
+        collectInternalMethods();
       } catch (final RocksDBException ex) {
         close();
         throw ex;
@@ -86,6 +90,10 @@ public class StateController implements AutoCloseable {
     }
 
     return db;
+  }
+
+  private void collectInternalMethods() throws Exception {
+    this.nativeHandle_ = (long) RocksDbInternal.rocksDbNativeHandle.get(db);
   }
 
   protected RocksDB openDB(final Options options) throws RocksDBException {
@@ -178,6 +186,51 @@ public class StateController implements AutoCloseable {
     }
   }
 
+  public void put(
+      final ColumnFamilyHandle handle,
+      final long key,
+      final byte[] value,
+      final int valueOffset,
+      final int valueLength) {
+    try {
+      setKey(key);
+      final long columnFamilyHandle = (long) RocksDbInternal.columnFamilyHandle.get(handle);
+      RocksDbInternal.putWithHandle.invoke(
+          db,
+          nativeHandle_,
+          dbLongBuffer.byteArray(),
+          0,
+          dbLongBuffer.capacity(),
+          value,
+          valueOffset,
+          valueLength,
+          columnFamilyHandle);
+    } catch (final Exception ex) {
+      throw new RuntimeException(ex);
+    }
+  }
+
+  public void put(
+      final long key, final byte[] value, final int valueOffset, final int valueLength) {
+    setKey(key);
+    put(dbLongBuffer.byteArray(), 0, dbLongBuffer.capacity(), value, valueOffset, valueLength);
+  }
+
+  public void put(
+      final byte[] key,
+      final int keyOffset,
+      final int keyLength,
+      final byte[] value,
+      final int valueOffset,
+      final int valueLength) {
+    try {
+      RocksDbInternal.putMethod.invoke(
+          db, nativeHandle_, key, keyOffset, keyLength, value, valueOffset, valueLength);
+    } catch (final Exception ex) {
+      throw new RuntimeException(ex);
+    }
+  }
+
   /**
    * *creates garbage*
    *
@@ -221,6 +274,22 @@ public class StateController implements AutoCloseable {
       db.delete(key);
     } catch (final RocksDBException e) {
       LangUtil.rethrowUnchecked(e);
+    }
+  }
+
+  public int get(
+      final byte[] key,
+      final int keyOffset,
+      final int keyLength,
+      final byte[] value,
+      final int valueOffset,
+      final int valueLength) {
+    try {
+      return (int)
+          RocksDbInternal.getMethod.invoke(
+              db, nativeHandle_, key, keyOffset, keyLength, value, valueOffset, valueLength);
+    } catch (final Exception ex) {
+      throw new RuntimeException(ex);
     }
   }
 

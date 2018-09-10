@@ -31,7 +31,7 @@ import org.junit.rules.TemporaryFolder;
 import org.rocksdb.ColumnFamilyDescriptor;
 import org.rocksdb.ColumnFamilyHandle;
 
-public class MessageStoringTest {
+public class StateControllerTest {
   @Rule public TemporaryFolder folder = new TemporaryFolder();
 
   private StateController stateController;
