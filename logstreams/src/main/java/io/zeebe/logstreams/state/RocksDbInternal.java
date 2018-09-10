@@ -27,6 +27,7 @@ public class RocksDbInternal {
 
   static Method putMethod;
   static Method putWithHandle;
+  static Method getWithHandle;
   static Method getMethod;
   static Method existMethod;
 
@@ -44,6 +45,7 @@ public class RocksDbInternal {
     nativeHandles();
 
     getMethod();
+    getWithHandle();
     existMethod();
 
     putMethod();
@@ -70,6 +72,21 @@ public class RocksDbInternal {
             Integer.TYPE,
             Integer.TYPE);
     getMethod.setAccessible(true);
+  }
+
+  private static void getWithHandle() throws NoSuchMethodException {
+    getWithHandle =
+        RocksDB.class.getDeclaredMethod(
+            "get",
+            Long.TYPE,
+            byte[].class,
+            Integer.TYPE,
+            Integer.TYPE,
+            byte[].class,
+            Integer.TYPE,
+            Integer.TYPE,
+            Long.TYPE);
+    getWithHandle.setAccessible(true);
   }
 
   private static void existMethod() throws NoSuchMethodException {

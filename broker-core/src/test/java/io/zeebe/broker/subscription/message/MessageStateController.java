@@ -30,14 +30,22 @@ import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.RocksDB;
 
 public class MessageStateController extends StateController {
-  private static final byte[] TIME_TO_LIVE_NAME = "timeToLive".getBytes();
-  private static final byte[] MESSAGE_ID_NAME = "messageId".getBytes();
+  private static final byte[] EXISTANCE = new byte[] {1};
+
+  private static final byte[] MSG_TIME_TO_LIVE_NAME = "msgTimeToLive".getBytes();
+  private static final byte[] MSG_ID_NAME = "messageId".getBytes();
+  private static final byte[] SUB_NAME = "msgSubscription".getBytes();
+  private static final byte[] SUB_SEND_TIME_NAME = "subSendTime".getBytes();
 
   private final UnsafeBuffer longBuffer = new UnsafeBuffer(0, 0);
   private final UnsafeBuffer iterateKeyBuffer = new UnsafeBuffer(0, 0);
 
   private ColumnFamilyHandle timeToLiveHandle;
   private ColumnFamilyHandle messageIdHandle;
+
+  private ColumnFamilyHandle subscriptionHandle;
+  private ColumnFamilyHandle subSendTimeHandle;
+
   private ExpandableArrayBuffer keyBuffer;
   private ExpandableArrayBuffer valueBuffer;
 
@@ -46,12 +54,27 @@ public class MessageStateController extends StateController {
     final RocksDB rocksDB = super.open(dbDirectory, reopen);
     keyBuffer = new ExpandableArrayBuffer();
     valueBuffer = new ExpandableArrayBuffer();
-    timeToLiveHandle = rocksDB.createColumnFamily(new ColumnFamilyDescriptor(TIME_TO_LIVE_NAME));
-    messageIdHandle = rocksDB.createColumnFamily(new ColumnFamilyDescriptor(MESSAGE_ID_NAME));
+
+    timeToLiveHandle =
+        rocksDB.createColumnFamily(new ColumnFamilyDescriptor(MSG_TIME_TO_LIVE_NAME));
+    messageIdHandle = rocksDB.createColumnFamily(new ColumnFamilyDescriptor(MSG_ID_NAME));
+    subscriptionHandle = rocksDB.createColumnFamily(new ColumnFamilyDescriptor(SUB_NAME));
+    subSendTimeHandle = rocksDB.createColumnFamily(new ColumnFamilyDescriptor(SUB_SEND_TIME_NAME));
+
     return rocksDB;
   }
 
-  private static final byte[] EXISTANCE = new byte[] {1};
+  private int wrapKey(final DirectBuffer messageName, final DirectBuffer correlationKey) {
+    int offset = 0;
+    final int nameLength = messageName.capacity();
+    keyBuffer.putBytes(0, messageName, 0, nameLength);
+    offset += nameLength;
+
+    final int correlationKeyLength = correlationKey.capacity();
+    keyBuffer.putBytes(offset, correlationKey, 0, correlationKeyLength);
+    offset += correlationKeyLength;
+    return offset;
+  }
 
   public void put(final Message message) {
     int offset = wrapKey(message.getName(), message.getCorrelationKey());
@@ -71,16 +94,21 @@ public class MessageStateController extends StateController {
     }
   }
 
-  private int wrapKey(final DirectBuffer messageName, final DirectBuffer correlationKey) {
-    int offset = 0;
-    final int nameLength = messageName.capacity();
-    keyBuffer.putBytes(0, messageName, 0, nameLength);
-    offset += nameLength;
+  public void put(final MessageSubscription subscription) {
+    final int offset = wrapKey(subscription.getMessageName(), subscription.getCorrelationKey());
+    subscription.write(valueBuffer, 0);
 
-    final int correlationKeyLength = correlationKey.capacity();
-    keyBuffer.putBytes(offset, correlationKey, 0, correlationKeyLength);
-    offset += correlationKeyLength;
-    return offset;
+    final int subscriptionLength = subscription.getLength();
+    put(
+        subscriptionHandle,
+        keyBuffer.byteArray(),
+        0,
+        offset,
+        valueBuffer.byteArray(),
+        0,
+        subscriptionLength);
+
+    put(subSendTimeHandle, subscription.getCommandSentTime(), keyBuffer.byteArray(), 0, offset);
   }
 
   public Message findMessage(final DirectBuffer name, final DirectBuffer correlationKey) {
@@ -103,6 +131,36 @@ public class MessageStateController extends StateController {
     return message;
   }
 
+  public MessageSubscription findSubscription(
+      final DirectBuffer messageName, final DirectBuffer correlationKey) {
+
+    final int length = wrapKey(messageName, correlationKey);
+    return getSubscription(keyBuffer, 0, length);
+  }
+
+  private MessageSubscription getSubscription(
+      final DirectBuffer buffer, final int offset, final int length) {
+    final int valueBufferSize = valueBuffer.capacity();
+    final int readBytes =
+        get(
+            subscriptionHandle,
+            buffer.byteArray(),
+            offset,
+            length,
+            valueBuffer.byteArray(),
+            0,
+            valueBufferSize);
+
+    if (readBytes > valueBufferSize) {
+      throw new IllegalStateException("Not enough space in value buffer");
+    }
+
+    final MessageSubscription subscription = new MessageSubscription();
+    subscription.wrap(valueBuffer, 0, readBytes);
+
+    return subscription;
+  }
+
   public List<Message> findMessageBefore(final long timestamp) {
     final List<Message> messageList = new ArrayList<>();
     foreach(
@@ -111,12 +169,28 @@ public class MessageStateController extends StateController {
           longBuffer.wrap(key);
           final long time = longBuffer.getLong(0, ByteOrder.LITTLE_ENDIAN);
 
-          if (time < timestamp) {
+          if (time <= timestamp) {
             iterateKeyBuffer.wrap(value);
             messageList.add(getMessage(iterateKeyBuffer, 0, value.length));
           }
         });
     return messageList;
+  }
+
+  public List<MessageSubscription> findSubscriptionBefore(final long deadline) {
+    final List<MessageSubscription> subscriptionsList = new ArrayList<>();
+    foreach(
+        subSendTimeHandle,
+        (key, value) -> {
+          longBuffer.wrap(key);
+          final long time = longBuffer.getLong(0, ByteOrder.LITTLE_ENDIAN);
+
+          if (time > 0 && time < deadline) {
+            iterateKeyBuffer.wrap(value);
+            subscriptionsList.add(getSubscription(iterateKeyBuffer, 0, value.length));
+          }
+        });
+    return subscriptionsList;
   }
 
   public boolean exist(final Message message) {

@@ -69,6 +69,18 @@ public class MessageStateControllerTest {
   }
 
   @Test
+  public void shouldStoreSubscription() {
+    // given
+    final MessageSubscription subscription =
+        new MessageSubscription("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1, 1234);
+
+    // when
+    stateController.put(subscription);
+
+    // then no error
+  }
+
+  @Test
   public void shouldNotExistIfNotStored() {
     // given
     final Message message =
@@ -128,6 +140,46 @@ public class MessageStateControllerTest {
   }
 
   @Test
+  public void shouldFindSubscription() {
+    // given
+    final MessageSubscription subscription =
+        new MessageSubscription("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1, 1234);
+    stateController.put(subscription);
+
+    // when
+    final MessageSubscription readSubscription =
+        stateController.findSubscription(wrapString("messageName"), wrapString("correlationKey"));
+
+    // then
+    assertThat(readSubscription.getMessageName()).isEqualTo(subscription.getMessageName());
+    assertThat(readSubscription.getCorrelationKey()).isEqualTo(subscription.getCorrelationKey());
+    assertThat(readSubscription.getMessagePayload()).isEqualTo(subscription.getMessagePayload());
+    assertThat(readSubscription.getCommandSentTime()).isEqualTo(1234);
+    assertThat(readSubscription.getWorkflowInstancePartitionId()).isGreaterThanOrEqualTo(1);
+  }
+
+  @Test
+  public void shouldFindSubscriptionWithMessageStored() {
+    // given
+    final MessageSubscription subscription =
+        new MessageSubscription("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1, 1234);
+    final Message message = new Message("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1234);
+    stateController.put(message);
+    stateController.put(subscription);
+
+    // when
+    final MessageSubscription readSubscription =
+        stateController.findSubscription(wrapString("messageName"), wrapString("correlationKey"));
+
+    // then
+    assertThat(readSubscription.getMessageName()).isEqualTo(subscription.getMessageName());
+    assertThat(readSubscription.getCorrelationKey()).isEqualTo(subscription.getCorrelationKey());
+    assertThat(readSubscription.getMessagePayload()).isEqualTo(subscription.getMessagePayload());
+    assertThat(readSubscription.getCommandSentTime()).isEqualTo(1234);
+    assertThat(readSubscription.getWorkflowInstancePartitionId()).isGreaterThanOrEqualTo(1);
+  }
+
+  @Test
   public void shouldNotFindMessageBeforeTime() {
     // given
     final long now = ActorClock.currentTimeMillis();
@@ -144,6 +196,30 @@ public class MessageStateControllerTest {
     // then
     final List<Message> readMessage = stateController.findMessageBefore(deadline);
     assertThat(readMessage).isEmpty();
+  }
+
+  @Test
+  public void shouldNotFindMessageSubscriptionBeforeTime() {
+    // given
+    final long now = ActorClock.currentTimeMillis();
+
+    final MessageSubscription subscription =
+        new MessageSubscription("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1, 1234);
+    final MessageSubscription subscription2 =
+        new MessageSubscription("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1, 4567);
+    final Message message = new Message("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1234);
+
+    stateController.put(message);
+    stateController.put(subscription);
+    stateController.put(subscription2);
+
+    // when
+    final long deadline = 1_000L;
+
+    // then
+    final List<MessageSubscription> readSubscriptions =
+        stateController.findSubscriptionBefore(deadline);
+    assertThat(readSubscriptions).isEmpty();
   }
 
   @Test
@@ -165,5 +241,32 @@ public class MessageStateControllerTest {
     assertThat(readMessage.get(0).getName()).isEqualTo(wrapString("messageName"));
     assertThat(readMessage.get(0).getCorrelationKey()).isEqualTo(wrapString("correlationKey"));
     assertThat(readMessage.get(0).getPayload()).isEqualTo(wrapString("{\"foo\":\"bar\"}"));
+  }
+
+  @Test
+  public void shouldFindMessageSubscriptionBeforeTime() {
+    // given
+    final MessageSubscription subscription =
+        new MessageSubscription("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1, 1234);
+    final MessageSubscription subscription2 =
+        new MessageSubscription("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1, 4567);
+    final Message message = new Message("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1234);
+
+    stateController.put(message);
+    stateController.put(subscription);
+    stateController.put(subscription2);
+
+    // when
+    final long deadline = 2_000L;
+
+    // then
+    final List<MessageSubscription> readSubscriptions =
+        stateController.findSubscriptionBefore(deadline);
+    assertThat(readSubscriptions.size()).isEqualTo(1);
+    final MessageSubscription readSubscription = readSubscriptions.get(0);
+    assertThat(readSubscription.getMessageName()).isEqualTo(wrapString("messageName"));
+    assertThat(readSubscription.getCorrelationKey()).isEqualTo(wrapString("correlationKey"));
+    assertThat(readSubscription.getMessagePayload()).isEqualTo(wrapString("{\"foo\":\"bar\"}"));
+    assertThat(readSubscription.getCommandSentTime()).isEqualTo(1234);
   }
 }

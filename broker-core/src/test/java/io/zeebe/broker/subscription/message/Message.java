@@ -102,8 +102,7 @@ public final class Message implements BufferWriter, BufferReader {
     key = buffer.getLong(offset, ByteOrder.LITTLE_ENDIAN);
   }
 
-  private int readIntoBuffer(
-      final DirectBuffer buffer, int offset, final DirectBuffer valueBuffer) {
+  static int readIntoBuffer(final DirectBuffer buffer, int offset, final DirectBuffer valueBuffer) {
     final int length = buffer.getInt(offset, ByteOrder.LITTLE_ENDIAN);
     offset += Integer.BYTES;
 
@@ -114,7 +113,7 @@ public final class Message implements BufferWriter, BufferReader {
     return offset;
   }
 
-  private int writeIntoBuffer(
+  static int writeIntoBuffer(
       final MutableDirectBuffer writeBuffer, int offset, final DirectBuffer valueBuffer) {
     final int valueLength = valueBuffer.capacity();
     writeBuffer.putInt(offset, valueLength, ByteOrder.LITTLE_ENDIAN);
