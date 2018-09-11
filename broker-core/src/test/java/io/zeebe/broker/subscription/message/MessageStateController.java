@@ -246,4 +246,15 @@ public class MessageStateController extends StateController {
   //      remove(messageIdHandle, keyBuffer.byteArray(), 0, offset);
   //    }
   //  }
+
+  public void remove(final MessageSubscription subscription)
+  {
+    subscription.writeKey(keyBuffer, TIME_OFFSET);
+
+    final int keyLength = subscription.getKeyLength() - KEY_OFFSET;
+    remove(subscriptionHandle, keyBuffer.byteArray(), KEY_OFFSET,
+      keyLength);
+
+    remove(subSendTimeHandle, keyBuffer.byteArray(), TIME_OFFSET, subscription.getKeyLength());
+  }
 }
