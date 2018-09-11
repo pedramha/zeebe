@@ -363,6 +363,81 @@ public class MessageStateControllerTest {
   }
 
   @Test
+  public void shouldRemoveMessageWithoutId() {
+    // given
+    final Message message = new Message("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1234);
+    stateController.put(message);
+
+    // when
+    stateController.remove(message);
+
+    // then
+    final List<Message> readMessages = stateController.findMessageBefore(2000);
+    assertThat(readMessages.size()).isEqualTo(0);
+
+    // and
+    final Message readMessage =
+        stateController.findMessage(wrapString("messageName"), wrapString("correlationKey"));
+    assertThat(readMessage).isNull();
+
+    // and
+    final boolean exist = stateController.exist(message);
+    assertThat(exist).isFalse();
+  }
+
+  @Test
+  public void shouldNotFailOnRemoveMessageTwice() {
+    // given
+    final Message message =
+        new Message("idOfMessage", "messageName", "correlationKey", "{\"foo\":\"bar\"}", 1234);
+    stateController.put(message);
+
+    // when
+    stateController.remove(message);
+    stateController.remove(message);
+
+    // then
+    final List<Message> readMessages = stateController.findMessageBefore(2000);
+    assertThat(readMessages.size()).isEqualTo(0);
+
+    // and
+    final Message readMessage =
+        stateController.findMessage(wrapString("messageName"), wrapString("correlationKey"));
+    assertThat(readMessage).isNull();
+
+    // and
+    final boolean exist = stateController.exist(message);
+    assertThat(exist).isFalse();
+  }
+
+  @Test
+  public void shouldNotRemoveDifferenMessage() {
+    // given
+    final Message message =
+        new Message("idOfMessage", "messageName", "correlationKey", "{\"foo\":\"bar\"}", 1234);
+    final Message message2 =
+        new Message("otherId", "otherName", "correlationKey", "{\"foo\":\"bar\"}", 1234);
+    stateController.put(message);
+
+    // when
+    stateController.remove(message2);
+
+    // then
+    final long deadline = ActorClock.currentTimeMillis() + 2_000L;
+    final List<Message> readMessages = stateController.findMessageBefore(deadline);
+    assertThat(readMessages.size()).isEqualTo(1);
+
+    // and
+    final Message readMessage =
+        stateController.findMessage(wrapString("messageName"), wrapString("correlationKey"));
+    assertThat(readMessage).isNotNull();
+
+    // and
+    final boolean exist = stateController.exist(message);
+    assertThat(exist).isTrue();
+  }
+
+  @Test
   public void shouldRemoveSubscription() {
     // given
     final MessageSubscription subscription =
