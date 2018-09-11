@@ -31,8 +31,6 @@ public class RocksDbInternal {
   static Method getWithHandle;
   static Method getMethod;
 
-  static Method existMethod;
-
   static Method removeMethod;
   static Method removeWithHandle;
 
@@ -54,8 +52,6 @@ public class RocksDbInternal {
 
     getMethod();
     getWithHandle();
-
-    existMethod();
 
     removeMethod();
     removeWithHandle();
@@ -125,19 +121,6 @@ public class RocksDbInternal {
             Integer.TYPE,
             Long.TYPE);
     getWithHandle.setAccessible(true);
-  }
-
-  private static void existMethod() throws NoSuchMethodException {
-    existMethod =
-        RocksDB.class.getDeclaredMethod(
-            "keyMayExist",
-            Long.TYPE,
-            byte[].class,
-            Integer.TYPE,
-            Integer.TYPE,
-            Long.TYPE,
-            StringBuilder.class);
-    existMethod.setAccessible(true);
   }
 
   private static void removeMethod() throws NoSuchMethodException {

@@ -137,14 +137,17 @@ public class MessageStateController extends StateController {
     final int readBytes =
         get(buffer.byteArray(), offset, length, valueBuffer.byteArray(), 0, valueBufferSize);
 
+    if (readBytes > 0) {
+      final Message message = new Message();
+      message.wrap(valueBuffer, 0, readBytes);
+
+      return message;
+    }
     if (readBytes > valueBufferSize) {
       throw new IllegalStateException("Not enough space in value buffer");
+    } else {
+      return null;
     }
-
-    final Message message = new Message();
-    message.wrap(valueBuffer, 0, readBytes);
-
-    return message;
   }
 
   private MessageSubscription getSubscription(
@@ -230,30 +233,29 @@ public class MessageStateController extends StateController {
     return exist(messageIdHandle, keyBuffer.byteArray(), KEY_OFFSET, offset - KEY_OFFSET);
   }
 
-  //  public void remove(final Message message) {
-  //    keyBuffer.putLong(0, message.getDeadline(), ByteOrder.LITTLE_ENDIAN);
-  //    int offset = wrapKey(message.getName(), message.getCorrelationKey());
-  //
-  //    remove(keyBuffer.byteArray(), KEY_OFFSET, offset);
-  //    remove(timeToLiveHandle, keyBuffer.byteArray(), 0, KEY_OFFSET + offset);
-  //
-  //    final DirectBuffer messageId = message.getId();
-  //    final int messageIdLength = messageId.capacity();
-  //    if (messageIdLength > 0) {
-  //      keyBuffer.putBytes(offset, messageId, 0, messageIdLength);
-  //      offset += messageIdLength;
-  //
-  //      remove(messageIdHandle, keyBuffer.byteArray(), 0, offset);
-  //    }
-  //  }
+  public void remove(final Message message) {
+    message.writeKey(keyBuffer, TIME_OFFSET);
 
-  public void remove(final MessageSubscription subscription)
-  {
+    final int keyLength = message.getKeyLength() - KEY_OFFSET;
+    remove(keyBuffer.byteArray(), KEY_OFFSET, keyLength);
+    remove(timeToLiveHandle, keyBuffer.byteArray(), 0, message.getKeyLength());
+
+    final DirectBuffer messageId = message.getId();
+    final int messageIdLength = messageId.capacity();
+    if (messageIdLength > 0) {
+      int offset = message.getKeyLength();
+      keyBuffer.putBytes(offset, messageId, 0, messageIdLength);
+      offset += messageIdLength;
+
+      remove(messageIdHandle, keyBuffer.byteArray(), KEY_OFFSET, offset - KEY_OFFSET);
+    }
+  }
+
+  public void remove(final MessageSubscription subscription) {
     subscription.writeKey(keyBuffer, TIME_OFFSET);
 
     final int keyLength = subscription.getKeyLength() - KEY_OFFSET;
-    remove(subscriptionHandle, keyBuffer.byteArray(), KEY_OFFSET,
-      keyLength);
+    remove(subscriptionHandle, keyBuffer.byteArray(), KEY_OFFSET, keyLength);
 
     remove(subSendTimeHandle, keyBuffer.byteArray(), TIME_OFFSET, subscription.getKeyLength());
   }

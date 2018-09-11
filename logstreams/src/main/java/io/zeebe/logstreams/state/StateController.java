@@ -379,9 +379,19 @@ public class StateController implements AutoCloseable {
       final ColumnFamilyHandle handle, final byte[] key, final int offset, final int length) {
     try {
       final long nativeHandle = (long) RocksDbInternal.columnFamilyHandle.get(handle);
-      return (boolean)
-          RocksDbInternal.existMethod.invoke(
-              db, nativeHandle_, key, offset, length, nativeHandle, new StringBuilder());
+      final int readBytes =
+          (int)
+              RocksDbInternal.getWithHandle.invoke(
+                  db,
+                  nativeHandle_,
+                  key,
+                  offset,
+                  length,
+                  dbLongBuffer.byteArray(),
+                  0,
+                  dbLongBuffer.capacity(),
+                  nativeHandle);
+      return readBytes > 0;
     } catch (final Exception ex) {
       throw new RuntimeException(ex);
     }
@@ -389,7 +399,7 @@ public class StateController implements AutoCloseable {
 
   public void remove(final byte[] key, final int offset, final int length) {
     try {
-      RocksDbInternal.removeWithHandle.invoke(db, nativeHandle_, key, offset, length);
+      RocksDbInternal.removeMethod.invoke(db, nativeHandle_, key, offset, length);
     } catch (final Exception ex) {
       throw new RuntimeException(ex);
     }

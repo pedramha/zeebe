@@ -141,6 +141,18 @@ public class MessageStateControllerTest {
   }
 
   @Test
+  public void shouldNotFindMessageWhichNotExist() {
+    // given
+
+    // when
+    final Message readMessage =
+        stateController.findMessage(wrapString("messageName"), wrapString("correlationKey"));
+
+    // then
+    assertThat(readMessage).isNull();
+  }
+
+  @Test
   public void shouldFindSubscription() {
     // given
     final MessageSubscription subscription =
@@ -323,6 +335,31 @@ public class MessageStateControllerTest {
     assertThat(readSubscription.getCorrelationKey()).isEqualTo(wrapString("correlationKey"));
     assertThat(readSubscription.getMessagePayload()).isEqualTo(wrapString("{\"foo\":\"bar\"}"));
     assertThat(readSubscription.getCommandSentTime()).isEqualTo(1234);
+  }
+
+  @Test
+  public void shouldRemoveMessage() {
+    // given
+    final Message message =
+        new Message("idOfMessage", "messageName", "correlationKey", "{\"foo\":\"bar\"}", 1234);
+    stateController.put(message);
+
+    // when
+    stateController.remove(message);
+
+    // then
+    final List<MessageSubscription> readSubscriptions =
+        stateController.findSubscriptionBefore(2000);
+    assertThat(readSubscriptions.size()).isEqualTo(0);
+
+    // and
+    final Message readMessage =
+        stateController.findMessage(wrapString("messageName"), wrapString("correlationKey"));
+    assertThat(readMessage).isNull();
+
+    // and
+    final boolean exist = stateController.exist(message);
+    assertThat(exist).isFalse();
   }
 
   @Test
