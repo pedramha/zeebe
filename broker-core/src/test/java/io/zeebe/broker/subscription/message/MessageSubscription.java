@@ -100,7 +100,7 @@ public class MessageSubscription implements BufferReader, BufferWriter {
   @Override
   public int getLength() {
     return Long.BYTES * 3
-        + Integer.BYTES
+        + Integer.BYTES * 4
         + messageName.capacity()
         + correlationKey.capacity()
         + messagePayload.capacity();
@@ -123,5 +123,6 @@ public class MessageSubscription implements BufferReader, BufferWriter {
     offset = Message.writeIntoBuffer(buffer, offset, messageName);
     offset = Message.writeIntoBuffer(buffer, offset, correlationKey);
     offset = Message.writeIntoBuffer(buffer, offset, messagePayload);
+    assert offset == getLength() : "End offset differs with getLength()";
   }
 }

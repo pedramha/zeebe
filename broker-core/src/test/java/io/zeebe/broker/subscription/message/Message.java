@@ -130,6 +130,7 @@ public final class Message implements BufferWriter, BufferReader {
         + correlationKey.capacity()
         + payload.capacity()
         + id.capacity()
+        + Integer.BYTES * 4
         + Long.BYTES * 3;
   }
 
@@ -145,5 +146,7 @@ public final class Message implements BufferWriter, BufferReader {
     buffer.putLong(offset, deadline, ByteOrder.LITTLE_ENDIAN);
     offset += Long.BYTES;
     buffer.putLong(offset, key, ByteOrder.LITTLE_ENDIAN);
+    offset += Long.BYTES;
+    assert offset == getLength() : "End offset differs with getLength()";
   }
 }
