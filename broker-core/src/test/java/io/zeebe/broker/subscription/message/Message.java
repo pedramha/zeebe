@@ -149,4 +149,27 @@ public final class Message implements BufferWriter, BufferReader {
     offset += Long.BYTES;
     assert offset == getLength() : "End offset differs with getLength()";
   }
+
+  public void writeKey(MutableDirectBuffer keyBuffer, int offset) {
+    keyBuffer.putLong(offset, deadline, ByteOrder.LITTLE_ENDIAN);
+    offset += Long.BYTES;
+    offset = writeMessageKeyToBuffer(keyBuffer, offset, name, correlationKey);
+    assert offset == getKeyLength() : "Offset problem: offset is not equal to expected key length";
+  }
+
+  public static int writeMessageKeyToBuffer(
+      MutableDirectBuffer keyBuffer, int offset, DirectBuffer name, DirectBuffer correlationKey) {
+    final int nameLength = name.capacity();
+    keyBuffer.putBytes(offset, name, 0, nameLength);
+    offset += nameLength;
+
+    final int correlationKeyLength = correlationKey.capacity();
+    keyBuffer.putBytes(offset, correlationKey, 0, correlationKeyLength);
+    offset += correlationKeyLength;
+    return offset;
+  }
+
+  public int getKeyLength() {
+    return Long.BYTES + name.capacity() + correlationKey.capacity();
+  }
 }

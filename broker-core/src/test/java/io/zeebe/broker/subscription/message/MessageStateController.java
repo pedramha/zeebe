@@ -30,8 +30,11 @@ import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.RocksDB;
 
 public class MessageStateController extends StateController {
+
   private static final byte[] EXISTANCE = new byte[] {1};
-  private static final int START_KEY_OFFSET = Long.BYTES;
+
+  private static final int TIME_OFFSET = 0;
+  private static final int KEY_OFFSET = TIME_OFFSET + Long.BYTES;
 
   private static final byte[] MSG_TIME_TO_LIVE_NAME = "msgTimeToLive".getBytes();
   private static final byte[] MSG_ID_NAME = "messageId".getBytes();
@@ -65,36 +68,26 @@ public class MessageStateController extends StateController {
     return rocksDB;
   }
 
-  private int wrapKey(final DirectBuffer messageName, final DirectBuffer correlationKey) {
-    int offset = START_KEY_OFFSET;
-    final int nameLength = messageName.capacity();
-    keyBuffer.putBytes(offset, messageName, 0, nameLength);
-    offset += nameLength;
-
-    final int correlationKeyLength = correlationKey.capacity();
-    keyBuffer.putBytes(offset, correlationKey, 0, correlationKeyLength);
-    offset += correlationKeyLength;
-    return offset;
-  }
-
   public void put(final Message message) {
-    keyBuffer.putLong(0, message.getDeadline(), ByteOrder.LITTLE_ENDIAN);
-    int offset = wrapKey(message.getName(), message.getCorrelationKey());
+    message.writeKey(keyBuffer, TIME_OFFSET);
     message.write(valueBuffer, 0);
 
-    mapNameAndCorrelationKeyToValue(getDb().getDefaultColumnFamily(), offset, message.getLength());
-    mapTimeNameAndCorrelationKeyToKey(timeToLiveHandle, offset);
+    final int keyLength = message.getKeyLength();
+    final int messageLength = message.getLength();
+    mapKeyWithoutTimeToValue(getDb().getDefaultColumnFamily(), keyLength, messageLength);
+    writeTimeAndKey(timeToLiveHandle, keyLength);
 
     final DirectBuffer messageId = message.getId();
     final int messageIdLength = messageId.capacity();
     if (messageIdLength > 0) {
+      int offset = keyLength;
       keyBuffer.putBytes(offset, messageId, 0, messageIdLength);
       offset += messageIdLength;
       put(
           messageIdHandle,
           keyBuffer.byteArray(),
-          START_KEY_OFFSET,
-          offset,
+          KEY_OFFSET,
+          offset - KEY_OFFSET,
           EXISTANCE,
           0,
           EXISTANCE.length);
@@ -102,22 +95,22 @@ public class MessageStateController extends StateController {
   }
 
   public void put(final MessageSubscription subscription) {
-    keyBuffer.putLong(0, subscription.getCommandSentTime(), ByteOrder.LITTLE_ENDIAN);
-    final int offset = wrapKey(subscription.getMessageName(), subscription.getCorrelationKey());
+    subscription.writeKey(keyBuffer, TIME_OFFSET);
     subscription.write(valueBuffer, 0);
 
     final int subscriptionLength = subscription.getLength();
-    mapNameAndCorrelationKeyToValue(subscriptionHandle, offset, subscriptionLength);
-    mapTimeNameAndCorrelationKeyToKey(subSendTimeHandle, offset);
+    final int keyLength = subscription.getKeyLength();
+    mapKeyWithoutTimeToValue(subscriptionHandle, keyLength, subscriptionLength);
+    writeTimeAndKey(subSendTimeHandle, keyLength);
   }
 
-  private void mapNameAndCorrelationKeyToValue(
-      final ColumnFamilyHandle handle, final int keyLength, final int valueLength) {
+  private void mapKeyWithoutTimeToValue(
+      final ColumnFamilyHandle handle, final int timeWithkeyLength, final int valueLength) {
     put(
         handle,
         keyBuffer.byteArray(),
-        START_KEY_OFFSET,
-        keyLength,
+        KEY_OFFSET,
+        timeWithkeyLength - KEY_OFFSET,
         valueBuffer.byteArray(),
         0,
         valueLength);
@@ -129,21 +122,14 @@ public class MessageStateController extends StateController {
    *
    * @param keyLength
    */
-  private void mapTimeNameAndCorrelationKeyToKey(
-      final ColumnFamilyHandle handle, final int keyLength) {
-    put(
-        handle,
-        keyBuffer.byteArray(),
-        0,
-        START_KEY_OFFSET + keyLength,
-        keyBuffer.byteArray(),
-        START_KEY_OFFSET,
-        keyLength);
+  private void writeTimeAndKey(final ColumnFamilyHandle handle, final int keyLength) {
+    put(handle, keyBuffer.byteArray(), TIME_OFFSET, keyLength, EXISTANCE, 0, EXISTANCE.length);
   }
 
   public Message findMessage(final DirectBuffer name, final DirectBuffer correlationKey) {
-    final int length = wrapKey(name, correlationKey);
-    return getMessage(keyBuffer, START_KEY_OFFSET, length);
+    final int offset =
+        Message.writeMessageKeyToBuffer(keyBuffer, TIME_OFFSET, name, correlationKey);
+    return getMessage(keyBuffer, TIME_OFFSET, offset);
   }
 
   private Message getMessage(final DirectBuffer buffer, final int offset, final int length) {
@@ -159,13 +145,6 @@ public class MessageStateController extends StateController {
     message.wrap(valueBuffer, 0, readBytes);
 
     return message;
-  }
-
-  public MessageSubscription findSubscription(
-      final DirectBuffer messageName, final DirectBuffer correlationKey) {
-
-    final int length = wrapKey(messageName, correlationKey);
-    return getSubscription(keyBuffer, START_KEY_OFFSET, length);
   }
 
   private MessageSubscription getSubscription(
@@ -191,17 +170,34 @@ public class MessageStateController extends StateController {
     return subscription;
   }
 
+  public List<MessageSubscription> findSubscriptions(
+      final DirectBuffer messageName, final DirectBuffer correlationKey) {
+    final List<MessageSubscription> subscriptionsList = new ArrayList<>();
+    foreach(
+        subscriptionHandle,
+        (key, value) -> {
+          final MessageSubscription messageSubscription = new MessageSubscription();
+          messageSubscription.wrap(new UnsafeBuffer(value), 0, value.length);
+
+          if (messageName.equals(messageSubscription.getMessageName())
+              && correlationKey.equals(messageSubscription.getCorrelationKey())) {
+            subscriptionsList.add(messageSubscription);
+          }
+        });
+    return subscriptionsList;
+  }
+
   public List<Message> findMessageBefore(final long timestamp) {
     final List<Message> messageList = new ArrayList<>();
     foreach(
         timeToLiveHandle,
         (key, value) -> {
-          longBuffer.wrap(key);
-          final long time = longBuffer.getLong(0, ByteOrder.LITTLE_ENDIAN);
+          iterateKeyBuffer.wrap(key);
+          final long time = iterateKeyBuffer.getLong(TIME_OFFSET, ByteOrder.LITTLE_ENDIAN);
 
           if (time <= timestamp) {
-            iterateKeyBuffer.wrap(value);
-            messageList.add(getMessage(iterateKeyBuffer, 0, value.length));
+            final int keyLength = key.length - KEY_OFFSET;
+            messageList.add(getMessage(iterateKeyBuffer, KEY_OFFSET, keyLength));
           }
         });
     return messageList;
@@ -212,40 +208,42 @@ public class MessageStateController extends StateController {
     foreach(
         subSendTimeHandle,
         (key, value) -> {
-          longBuffer.wrap(key);
-          final long time = longBuffer.getLong(0, ByteOrder.LITTLE_ENDIAN);
+          iterateKeyBuffer.wrap(key);
+          final long time = iterateKeyBuffer.getLong(TIME_OFFSET, ByteOrder.LITTLE_ENDIAN);
 
           if (time > 0 && time < deadline) {
-            iterateKeyBuffer.wrap(value);
-            subscriptionsList.add(getSubscription(iterateKeyBuffer, 0, value.length));
+            final int keyLengthWithoutTime = key.length - KEY_OFFSET;
+            subscriptionsList.add(
+                getSubscription(iterateKeyBuffer, KEY_OFFSET, keyLengthWithoutTime));
           }
         });
     return subscriptionsList;
   }
 
   public boolean exist(final Message message) {
-    int offset = wrapKey(message.getName(), message.getCorrelationKey());
+    message.writeKey(keyBuffer, TIME_OFFSET);
+    int offset = message.getKeyLength();
     final int idLength = message.getId().capacity();
     keyBuffer.putBytes(offset, message.getId(), 0, idLength);
     offset += idLength;
 
-    return exist(messageIdHandle, keyBuffer.byteArray(), START_KEY_OFFSET, offset);
+    return exist(messageIdHandle, keyBuffer.byteArray(), KEY_OFFSET, offset - KEY_OFFSET);
   }
 
-  public void remove(final Message message) {
-    keyBuffer.putLong(0, message.getDeadline(), ByteOrder.LITTLE_ENDIAN);
-    int offset = wrapKey(message.getName(), message.getCorrelationKey());
-
-    remove(keyBuffer.byteArray(), START_KEY_OFFSET, offset);
-    remove(timeToLiveHandle, keyBuffer.byteArray(), 0, START_KEY_OFFSET + offset);
-
-    final DirectBuffer messageId = message.getId();
-    final int messageIdLength = messageId.capacity();
-    if (messageIdLength > 0) {
-      keyBuffer.putBytes(offset, messageId, 0, messageIdLength);
-      offset += messageIdLength;
-
-      remove(messageIdHandle, keyBuffer.byteArray(), 0, offset);
-    }
-  }
+  //  public void remove(final Message message) {
+  //    keyBuffer.putLong(0, message.getDeadline(), ByteOrder.LITTLE_ENDIAN);
+  //    int offset = wrapKey(message.getName(), message.getCorrelationKey());
+  //
+  //    remove(keyBuffer.byteArray(), KEY_OFFSET, offset);
+  //    remove(timeToLiveHandle, keyBuffer.byteArray(), 0, KEY_OFFSET + offset);
+  //
+  //    final DirectBuffer messageId = message.getId();
+  //    final int messageIdLength = messageId.capacity();
+  //    if (messageIdLength > 0) {
+  //      keyBuffer.putBytes(offset, messageId, 0, messageIdLength);
+  //      offset += messageIdLength;
+  //
+  //      remove(messageIdHandle, keyBuffer.byteArray(), 0, offset);
+  //    }
+  //  }
 }

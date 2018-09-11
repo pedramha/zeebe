@@ -49,9 +49,9 @@ public class PublishMessageProcessor implements TypedRecordProcessor<MessageReco
   private List<MessageSubscription> matchingSubscriptions;
 
   public PublishMessageProcessor(
-      MessageDataStore messageStore,
-      MessageSubscriptionDataStore subscriptionStore,
-      SubscriptionCommandSender commandSender) {
+      final MessageDataStore messageStore,
+      final MessageSubscriptionDataStore subscriptionStore,
+      final SubscriptionCommandSender commandSender) {
     this.messageStore = messageStore;
     this.subscriptionStore = subscriptionStore;
     this.commandSender = commandSender;
@@ -59,10 +59,10 @@ public class PublishMessageProcessor implements TypedRecordProcessor<MessageReco
 
   @Override
   public void processRecord(
-      TypedRecord<MessageRecord> record,
-      TypedResponseWriter responseWriter,
-      TypedStreamWriter streamWriter,
-      Consumer<SideEffectProducer> sideEffect) {
+      final TypedRecord<MessageRecord> record,
+      final TypedResponseWriter responseWriter,
+      final TypedStreamWriter streamWriter,
+      final Consumer<SideEffectProducer> sideEffect) {
     this.responseWriter = responseWriter;
 
     messageRecord = record.getValue();
@@ -93,7 +93,7 @@ public class PublishMessageProcessor implements TypedRecordProcessor<MessageReco
       matchingSubscriptions =
           subscriptionStore.findSubscriptions(message.getName(), message.getCorrelationKey());
 
-      for (MessageSubscription sub : matchingSubscriptions) {
+      for (final MessageSubscription sub : matchingSubscriptions) {
         sub.setMessagePayload(messagePayload);
       }
 
@@ -111,7 +111,7 @@ public class PublishMessageProcessor implements TypedRecordProcessor<MessageReco
   }
 
   private boolean correlateMessage() {
-    for (MessageSubscription sub : matchingSubscriptions) {
+    for (final MessageSubscription sub : matchingSubscriptions) {
       final boolean success =
           commandSender.correlateWorkflowInstanceSubscription(
               sub.getWorkflowInstancePartitionId(),

@@ -25,6 +25,8 @@ import org.agrona.MutableDirectBuffer;
 import org.agrona.concurrent.UnsafeBuffer;
 
 public class MessageSubscription implements BufferReader, BufferWriter {
+  static final int KEY_LENGTH = 3 * Long.BYTES + Integer.BYTES;
+
   private final DirectBuffer messageName = new UnsafeBuffer();
   private final DirectBuffer correlationKey = new UnsafeBuffer();
   private final DirectBuffer messagePayload = new UnsafeBuffer();
@@ -41,12 +43,16 @@ public class MessageSubscription implements BufferReader, BufferWriter {
       final String correlationKey,
       final String messagePayload,
       final int partitionId,
+      final long workflowInstanceKey,
+      final long activityInstanceKey,
       final long commandSentTime) {
     this.messageName.wrap(messageName.getBytes());
     this.correlationKey.wrap(correlationKey.getBytes());
     this.messagePayload.wrap(messagePayload.getBytes());
 
     this.workflowInstancePartitionId = partitionId;
+    this.workflowInstanceKey = workflowInstanceKey;
+    this.activityInstanceKey = activityInstanceKey;
     this.commandSentTime = commandSentTime;
   }
 
@@ -124,5 +130,22 @@ public class MessageSubscription implements BufferReader, BufferWriter {
     offset = Message.writeIntoBuffer(buffer, offset, correlationKey);
     offset = Message.writeIntoBuffer(buffer, offset, messagePayload);
     assert offset == getLength() : "End offset differs with getLength()";
+  }
+
+  public void writeKey(MutableDirectBuffer keyBuffer, int offset) {
+    keyBuffer.putLong(offset, commandSentTime, ByteOrder.LITTLE_ENDIAN);
+    offset += Long.BYTES;
+    keyBuffer.putInt(offset, getWorkflowInstancePartitionId());
+    offset += Integer.BYTES;
+    keyBuffer.putLong(offset, workflowInstanceKey);
+    offset += Long.BYTES;
+    keyBuffer.putLong(offset, activityInstanceKey);
+    offset += Long.BYTES;
+
+    assert offset == KEY_LENGTH : "Offset problem: offset is not equal to expected key length";
+  }
+
+  public int getKeyLength() {
+    return KEY_LENGTH;
   }
 }
