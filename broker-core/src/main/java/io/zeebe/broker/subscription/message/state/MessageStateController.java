@@ -31,7 +31,7 @@ import org.rocksdb.RocksDB;
 
 public class MessageStateController extends KeyStateController {
 
-  private static final byte[] EXISTANCE = new byte[] {1};
+  private static final byte[] EXISTENCE = new byte[] {1};
 
   private static final int TIME_OFFSET = 0;
   private static final int KEY_OFFSET = TIME_OFFSET + Long.BYTES;
@@ -41,7 +41,6 @@ public class MessageStateController extends KeyStateController {
   private static final byte[] SUB_NAME = "msgSubscription".getBytes();
   private static final byte[] SUB_SEND_TIME_NAME = "subSendTime".getBytes();
 
-  private final UnsafeBuffer longBuffer = new UnsafeBuffer(0, 0);
   private final UnsafeBuffer iterateKeyBuffer = new UnsafeBuffer(0, 0);
 
   private ColumnFamilyHandle timeToLiveHandle;
@@ -88,9 +87,9 @@ public class MessageStateController extends KeyStateController {
           keyBuffer.byteArray(),
           KEY_OFFSET,
           offset - KEY_OFFSET,
-          EXISTANCE,
+          EXISTENCE,
           0,
-          EXISTANCE.length);
+          EXISTENCE.length);
     }
   }
 
@@ -123,7 +122,7 @@ public class MessageStateController extends KeyStateController {
    * @param keyLength
    */
   private void writeTimeAndKey(final ColumnFamilyHandle handle, final int keyLength) {
-    put(handle, keyBuffer.byteArray(), TIME_OFFSET, keyLength, EXISTANCE, 0, EXISTANCE.length);
+    put(handle, keyBuffer.byteArray(), TIME_OFFSET, keyLength, EXISTENCE, 0, EXISTENCE.length);
   }
 
   public Message findMessage(final DirectBuffer name, final DirectBuffer correlationKey) {
