@@ -20,10 +20,14 @@ package io.zeebe.broker.subscription.message.state;
 import static io.zeebe.util.buffer.BufferUtil.wrapString;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.zeebe.util.collection.Tuple;
 import io.zeebe.util.sched.clock.ActorClock;
+import java.util.ArrayList;
 import java.util.List;
+import org.agrona.concurrent.UnsafeBuffer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -377,9 +381,8 @@ public class MessageStateControllerTest {
     stateController.remove(message);
 
     // then
-    final List<MessageSubscription> readSubscriptions =
-        stateController.findSubscriptionBefore(2000);
-    assertThat(readSubscriptions.size()).isEqualTo(0);
+    final List<Message> readMessages = stateController.findMessageBefore(2000);
+    assertThat(readMessages.size()).isEqualTo(0);
 
     // and
     final Message readMessage =
@@ -389,6 +392,46 @@ public class MessageStateControllerTest {
     // and
     final boolean exist = stateController.exist(message);
     assertThat(exist).isFalse();
+  }
+
+  @Test
+  @Ignore("https://github.com/zeebe-io/zeebe/issues/1323")
+  public void shouldRemoveAllEntriesIfMessageIsRemoved() {
+    // given
+    final Message message = new Message("messageName", "correlationKey", "{\"foo\":\"bar\"}", 1234);
+    final Message message2 =
+        new Message("messageName", "correlationKey", "{\"foo\":\"bar\"}", 4500);
+    stateController.put(message);
+    stateController.put(message2);
+
+    // when
+    stateController.remove(message2);
+
+    // then
+    final List<Message> readMessages = stateController.findMessageBefore(2000);
+    assertThat(readMessages.size()).isEqualTo(0);
+
+    // and
+    final Message readMessage =
+        stateController.findMessage(wrapString("messageName"), wrapString("correlationKey"));
+    assertThat(readMessage).isNull();
+
+    // and
+    final UnsafeBuffer keyBuffer = new UnsafeBuffer(new byte[message.getKeyLength()]);
+    message.writeKey(keyBuffer, 0);
+
+    final boolean exists =
+        stateController.exist(
+            stateController.timeToLiveHandle, keyBuffer.byteArray(), 0, keyBuffer.capacity());
+    assertThat(exists).isFalse();
+
+    final List<Tuple<byte[], byte[]>> keyValues = new ArrayList<>();
+    stateController.foreach(
+        stateController.timeToLiveHandle,
+        (k, v) -> {
+          keyValues.add(new Tuple<>(k, v));
+        });
+    assertThat(keyValues).isEmpty();
   }
 
   @Test

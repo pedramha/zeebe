@@ -43,7 +43,7 @@ public class MessageStateController extends KeyStateController {
 
   private final UnsafeBuffer iterateKeyBuffer = new UnsafeBuffer(0, 0);
 
-  private ColumnFamilyHandle timeToLiveHandle;
+  protected ColumnFamilyHandle timeToLiveHandle;
   private ColumnFamilyHandle messageIdHandle;
 
   private ColumnFamilyHandle subscriptionHandle;
