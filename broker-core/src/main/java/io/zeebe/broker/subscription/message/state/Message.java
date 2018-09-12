@@ -104,6 +104,10 @@ public final class Message implements BufferWriter, BufferReader {
     return key;
   }
 
+  public void setKey(long key) {
+    this.key = key;
+  }
+
   @Override
   public void wrap(final DirectBuffer buffer, int offset, final int length) {
     offset = readIntoBuffer(buffer, offset, name);

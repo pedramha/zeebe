@@ -82,6 +82,7 @@ public class PublishMessageProcessor implements TypedRecordProcessor<MessageReco
       final TypedBatchWriter batchWriter = streamWriter.newBatch();
       final long key = batchWriter.addNewEvent(MessageIntent.PUBLISHED, record.getValue());
       responseWriter.writeEventOnCommand(key, MessageIntent.PUBLISHED, record);
+      message.setKey(key);
 
       matchingSubscriptions =
           messageStateController.findSubscriptions(message.getName(), message.getCorrelationKey());
