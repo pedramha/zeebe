@@ -17,7 +17,7 @@
  */
 package io.zeebe.broker.subscription.message.state;
 
-import io.zeebe.logstreams.state.StateController;
+import io.zeebe.broker.util.KeyStateController;
 import java.io.File;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -29,7 +29,7 @@ import org.rocksdb.ColumnFamilyDescriptor;
 import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.RocksDB;
 
-public class MessageStateController extends StateController {
+public class MessageStateController extends KeyStateController {
 
   private static final byte[] EXISTANCE = new byte[] {1};
 
