@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package io.zeebe.broker.subscription.message;
+package io.zeebe.broker.subscription.message.state;
 
 import io.zeebe.util.buffer.BufferReader;
 import io.zeebe.util.buffer.BufferWriter;
@@ -38,6 +38,20 @@ public class MessageSubscription implements BufferReader, BufferWriter {
 
   public MessageSubscription() {}
 
+  public MessageSubscription(
+      int workflowInstancePartitionId,
+      long workflowInstanceKey,
+      long activityInstanceKey,
+      DirectBuffer messageName,
+      DirectBuffer correlationKey) {
+    this.workflowInstancePartitionId = workflowInstancePartitionId;
+    this.workflowInstanceKey = workflowInstanceKey;
+    this.activityInstanceKey = activityInstanceKey;
+
+    this.messageName.wrap(messageName);
+    this.correlationKey.wrap(correlationKey);
+  }
+
   MessageSubscription(
       final String messageName,
       final String correlationKey,
@@ -46,14 +60,15 @@ public class MessageSubscription implements BufferReader, BufferWriter {
       final long workflowInstanceKey,
       final long activityInstanceKey,
       final long commandSentTime) {
-    this.messageName.wrap(messageName.getBytes());
-    this.correlationKey.wrap(correlationKey.getBytes());
-    this.messagePayload.wrap(messagePayload.getBytes());
+    this(
+        partitionId,
+        workflowInstanceKey,
+        activityInstanceKey,
+        new UnsafeBuffer(messageName.getBytes()),
+        new UnsafeBuffer(correlationKey.getBytes()));
 
-    this.workflowInstancePartitionId = partitionId;
-    this.workflowInstanceKey = workflowInstanceKey;
-    this.activityInstanceKey = activityInstanceKey;
-    this.commandSentTime = commandSentTime;
+    setCommandSentTime(commandSentTime);
+    setMessagePayload(new UnsafeBuffer(messagePayload.getBytes()));
   }
 
   public DirectBuffer getMessageName() {
@@ -82,6 +97,14 @@ public class MessageSubscription implements BufferReader, BufferWriter {
 
   public long getCommandSentTime() {
     return commandSentTime;
+  }
+
+  public void setCommandSentTime(long commandSentTime) {
+    this.commandSentTime = commandSentTime;
+  }
+
+  public void setPayload(DirectBuffer payload) {
+    this.messagePayload.wrap(payload);
   }
 
   @Override
@@ -147,5 +170,9 @@ public class MessageSubscription implements BufferReader, BufferWriter {
 
   public int getKeyLength() {
     return KEY_LENGTH;
+  }
+
+  public void setMessagePayload(DirectBuffer payload) {
+    this.messagePayload.wrap(payload);
   }
 }

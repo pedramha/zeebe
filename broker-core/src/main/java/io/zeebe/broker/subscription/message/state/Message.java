@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package io.zeebe.broker.subscription.message;
+package io.zeebe.broker.subscription.message.state;
 
 import io.zeebe.util.buffer.BufferReader;
 import io.zeebe.util.buffer.BufferWriter;
@@ -37,13 +37,29 @@ public final class Message implements BufferWriter, BufferReader {
 
   public Message() {}
 
-  Message(
-      final String name, final String correlationKey, final String payload, final long timeToLive) {
-    this.name.wrap(name.getBytes());
-    this.correlationKey.wrap(correlationKey.getBytes());
-    this.payload.wrap(payload.getBytes());
+  public Message(
+      DirectBuffer name,
+      DirectBuffer correlationKey,
+      DirectBuffer payload,
+      DirectBuffer id,
+      long timeToLive) {
+    this.name.wrap(name);
+    this.correlationKey.wrap(correlationKey);
+    this.payload.wrap(payload);
+    this.id.wrap(id);
+
     this.timeToLive = timeToLive;
     this.deadline = ActorClock.currentTimeMillis() + timeToLive;
+  }
+
+  Message(
+      final String name, final String correlationKey, final String payload, final long timeToLive) {
+    this(
+        new UnsafeBuffer(name.getBytes()),
+        new UnsafeBuffer(correlationKey.getBytes()),
+        new UnsafeBuffer(payload.getBytes()),
+        new UnsafeBuffer(new byte[0]),
+        timeToLive);
   }
 
   Message(
@@ -52,12 +68,12 @@ public final class Message implements BufferWriter, BufferReader {
       final String correlationKey,
       final String payload,
       final long timeToLive) {
-    this.name.wrap(name.getBytes());
-    this.correlationKey.wrap(correlationKey.getBytes());
-    this.id.wrap(id.getBytes());
-    this.payload.wrap(payload.getBytes());
-    this.timeToLive = timeToLive;
-    this.deadline = ActorClock.currentTimeMillis() + timeToLive;
+    this(
+        new UnsafeBuffer(name.getBytes()),
+        new UnsafeBuffer(correlationKey.getBytes()),
+        new UnsafeBuffer(payload.getBytes()),
+        new UnsafeBuffer(id.getBytes()),
+        timeToLive);
   }
 
   public DirectBuffer getName() {

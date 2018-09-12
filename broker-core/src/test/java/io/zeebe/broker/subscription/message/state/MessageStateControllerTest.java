@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package io.zeebe.broker.subscription.message;
+package io.zeebe.broker.subscription.message.state;
 
 import static io.zeebe.util.buffer.BufferUtil.wrapString;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -116,6 +116,35 @@ public class MessageStateControllerTest {
 
     // when
     final boolean exist = stateController.exist(message);
+
+    // then
+    assertThat(exist).isTrue();
+  }
+
+  @Test
+  public void shouldNotExistIfSubscriptionNotStored() {
+    // given
+    final MessageSubscription subscription =
+        new MessageSubscription(
+            "messageName", "correlationKey", "{\"foo\":\"bar\"}", 1, 2, 3, 1234);
+
+    // when
+    final boolean exist = stateController.exist(subscription);
+
+    // then
+    assertThat(exist).isFalse();
+  }
+
+  @Test
+  public void shouldExistSubscription() {
+    // given
+    final MessageSubscription subscription =
+        new MessageSubscription(
+            "messageName", "correlationKey", "{\"foo\":\"bar\"}", 1, 2, 3, 1234);
+    stateController.put(subscription);
+
+    // when
+    final boolean exist = stateController.exist(subscription);
 
     // then
     assertThat(exist).isTrue();
@@ -457,6 +486,10 @@ public class MessageStateControllerTest {
     readSubscriptions =
         stateController.findSubscriptions(wrapString("messageName"), wrapString("correlationKey"));
     assertThat(readSubscriptions.size()).isEqualTo(0);
+
+    // and
+    final boolean exist = stateController.exist(subscription);
+    assertThat(exist).isFalse();
   }
 
   @Test

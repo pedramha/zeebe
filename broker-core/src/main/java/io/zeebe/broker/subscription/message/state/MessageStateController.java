@@ -15,7 +15,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package io.zeebe.broker.subscription.message;
+package io.zeebe.broker.subscription.message.state;
 
 import io.zeebe.logstreams.state.StateController;
 import java.io.File;
@@ -231,6 +231,13 @@ public class MessageStateController extends StateController {
     offset += idLength;
 
     return exist(messageIdHandle, keyBuffer.byteArray(), KEY_OFFSET, offset - KEY_OFFSET);
+  }
+
+  public boolean exist(final MessageSubscription subscription) {
+    subscription.writeKey(keyBuffer, TIME_OFFSET);
+    final int offset = subscription.getKeyLength();
+
+    return exist(subscriptionHandle, keyBuffer.byteArray(), KEY_OFFSET, offset - KEY_OFFSET);
   }
 
   public void remove(final Message message) {
