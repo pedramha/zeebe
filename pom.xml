@@ -47,6 +47,7 @@
     <module>exporter-api</module>
     <module>exporter-asserts</module>
     <module>exporters/elasticsearch-exporter</module>
+    <module>exporters/mongodb-exporter</module>
   </modules>
 
   <build>
