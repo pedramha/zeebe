@@ -1,0 +1,55 @@
+{
+  "index_patterns": [
+    "zeebe-records-*"
+  ],
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 1
+  },
+  "mappings": {
+    "_doc": {
+      "dynamic": "strict",
+      "properties": {
+        "position": {
+          "type": "long"
+        },
+        "raftTerm": {
+          "type": "integer"
+        },
+        "sourceRecordPosition": {
+          "type": "long"
+        },
+        "producerId": {
+          "type": "integer"
+        },
+        "key": {
+          "type": "long"
+        },
+        "timestamp": {
+          "type": "date"
+        },
+        "intent": {
+          "type": "text"
+        },
+        "partitionId": {
+          "type": "integer"
+        },
+        "recordType": {
+          "type": "text"
+        },
+        "rejectionType": {
+          "type": "text"
+        },
+        "rejectionReason": {
+          "type": "text"
+        },
+        "valueType": {
+          "type": "text"
+        },
+        "value": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

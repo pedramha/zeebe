@@ -19,31 +19,36 @@ import io.zeebe.exporter.record.Record;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.common.xcontent.XContentType;
 
 public class IndexRequestFactory {
 
-  private final String type;
+  private final String indexPrefix;
   private final DateTimeFormatter formatter;
 
   public IndexRequestFactory() {
-    this("zeebe-records", "record");
+    this("zeebe-records");
   }
 
-  public IndexRequestFactory(String indexPrefix, String type) {
-    this.type = type;
-    this.formatter =
-        DateTimeFormatter.ofPattern(indexPrefix + "-yyyy-MM-dd").withZone(ZoneOffset.UTC);
+  public IndexRequestFactory(String indexPrefix) {
+    this.indexPrefix = indexPrefix;
+    this.formatter = DateTimeFormatter.ofPattern("-yyyy-MM-dd").withZone(ZoneOffset.UTC);
   }
 
   public IndexRequest create(final Record<?> record) {
-    return new IndexRequest(indexFor(record), type, idFor(record)).source(record.toJson());
+    return new IndexRequest(indexFor(record), typeFor(record), idFor(record))
+        .source(record.toJson(), XContentType.JSON);
   }
 
-  private String indexFor(final Record<?> record) {
-    return formatter.format(record.getTimestamp());
+  protected String indexFor(final Record<?> record) {
+    return indexPrefix + "-" + formatter.format(record.getTimestamp());
   }
 
-  private String idFor(final Record<?> record) {
+  protected String idFor(final Record<?> record) {
     return record.getMetadata().getPartitionId() + "-" + record.getPosition();
+  }
+
+  public String typeFor(Record record) {
+    return "_doc";
   }
 }

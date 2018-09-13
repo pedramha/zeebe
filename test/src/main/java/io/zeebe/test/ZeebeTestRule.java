@@ -19,6 +19,7 @@ import static io.zeebe.test.TopicEventRecorder.jobKey;
 import static io.zeebe.test.TopicEventRecorder.wfInstanceKey;
 import static org.assertj.core.api.Assertions.fail;
 
+import io.zeebe.broker.system.configuration.BrokerCfg;
 import io.zeebe.gateway.ClientProperties;
 import io.zeebe.gateway.ZeebeClient;
 import io.zeebe.gateway.api.events.JobEvent;
@@ -58,6 +59,10 @@ public class ZeebeTestRule extends ExternalResource {
 
   public ZeebeClient getClient() {
     return clientRule.getClient();
+  }
+
+  public BrokerCfg getBrokerCfg() {
+    return brokerRule.getBrokerCfg();
   }
 
   @Override

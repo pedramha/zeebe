@@ -18,8 +18,10 @@ package io.zeebe.exporter;
 public class ElasticsearchExporterConfiguration {
 
   private String host = "localhost";
-  private int port = 9200;
+  private int port = 9300;
   private String clusterName = "elasticsearch";
+  private boolean createTemplate = true;
+  private String templateName = "zeebe-records";
 
   public String getHost() {
     return host;
@@ -45,6 +47,22 @@ public class ElasticsearchExporterConfiguration {
     this.clusterName = clusterName;
   }
 
+  public boolean isCreateTemplate() {
+    return createTemplate;
+  }
+
+  public void setCreateTemplate(boolean createTemplate) {
+    this.createTemplate = createTemplate;
+  }
+
+  public String getTemplateName() {
+    return templateName;
+  }
+
+  public void setTemplateName(String templateName) {
+    this.templateName = templateName;
+  }
+
   @Override
   public String toString() {
     return "ElasticsearchExporterConfiguration{"
@@ -55,6 +73,11 @@ public class ElasticsearchExporterConfiguration {
         + port
         + ", clusterName='"
         + clusterName
+        + '\''
+        + ", createTemplate="
+        + createTemplate
+        + ", templateName='"
+        + templateName
         + '\''
         + '}';
   }

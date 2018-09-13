@@ -19,23 +19,22 @@ import io.zeebe.exporter.context.Context;
 import io.zeebe.exporter.context.Controller;
 import io.zeebe.exporter.record.Record;
 import io.zeebe.exporter.spi.Exporter;
+import io.zeebe.util.StreamUtil;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.concurrent.TimeUnit;
-import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.bulk.BulkProcessor;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.slf4j.Logger;
 
-public class ElasticsearchExporter implements Exporter, BulkProcessor.Listener {
+public class ElasticsearchExporter implements Exporter {
+
+  public static final String ZEEBE_RECORDS_TEMPLATE_FILENAME = "/zeebe_records_template.json";
 
   static {
     // workaround if the gateway already configured netty
@@ -51,7 +50,7 @@ public class ElasticsearchExporter implements Exporter, BulkProcessor.Listener {
   private ElasticsearchExporterConfiguration configuration;
 
   private TransportClient client;
-  private BulkProcessor bulkProcessor;
+  private BulkRequestBuilder requestBuilder;
   private IndexRequestFactory indexRequestFactory;
 
   @Override
@@ -68,34 +67,70 @@ public class ElasticsearchExporter implements Exporter, BulkProcessor.Listener {
     this.controller = controller;
     try {
       client = createClient();
-      bulkProcessor = createBulkProcessor();
-      indexRequestFactory = new IndexRequestFactory();
-      log.debug("Exporter {} opened", id);
     } catch (Exception e) {
       throw new RuntimeException(
           "Exporter " + id + " to connect to elasticsearch with configuration: " + configuration,
           e);
     }
+
+    requestBuilder = client.prepareBulk();
+    indexRequestFactory = new IndexRequestFactory();
+
+    if (configuration.isCreateTemplate()) {
+      createTemplate();
+    }
+
+    log.debug("Exporter {} opened", id);
+  }
+
+  private void createTemplate() {
+    final String templateFilename = ZEEBE_RECORDS_TEMPLATE_FILENAME;
+
+    try (InputStream resourceAsStream =
+        ElasticsearchExporter.class.getResourceAsStream(templateFilename)) {
+      if (resourceAsStream == null) {
+        log.error("Unable to read index template from file: {}", templateFilename);
+      } else {
+        final String templateName = configuration.getTemplateName();
+        client
+            .admin()
+            .indices()
+            .preparePutTemplate(templateName)
+            .setSource(StreamUtil.read(resourceAsStream), XContentType.JSON)
+            .execute()
+            .actionGet();
+        log.info("Updated index template '{}' from file '{}'", templateName, templateFilename);
+      }
+    } catch (IOException e) {
+      log.error("Failed to load index template from file: {}", templateFilename, e);
+    }
   }
 
   @Override
   public void close() {
+    requestBuilder.get();
     client.close();
-    try {
-      if (bulkProcessor.awaitClose(10, TimeUnit.SECONDS)) {
-        log.debug("All remaining records flushed");
-      } else {
-        log.warn("Failed to flush all remaining records");
-      }
-    } catch (final Exception e) {
-      log.error("Failed to close bulk processor", e);
-    }
     log.debug("Exporter {} closed", id);
   }
 
   @Override
   public void export(Record record) {
-    bulkProcessor.add(indexRequestFactory.create(record));
+    client
+        .prepareIndex()
+        .setIndex(indexRequestFactory.indexFor(record))
+        .setType(indexRequestFactory.typeFor(record))
+        .setId(indexRequestFactory.idFor(record))
+        .setSource(record.toJson(), XContentType.JSON)
+        .get();
+    /*
+    requestBuilder.add(
+        client
+            .prepareIndex()
+            .setIndex(indexRequestFactory.indexFor(record))
+            .setType(indexRequestFactory.typeFor(record))
+            .setId(indexRequestFactory.idFor(record))
+            .setSource(record.toJson(), XContentType.JSON));
+            */
   }
 
   private TransportClient createClient() throws UnknownHostException {
@@ -112,35 +147,5 @@ public class ElasticsearchExporter implements Exporter, BulkProcessor.Listener {
         configuration.getPort(),
         configuration.getClusterName());
     return new PreBuiltTransportClient(settings).addTransportAddress(transportAddress);
-  }
-
-  private BulkProcessor createBulkProcessor() {
-    return BulkProcessor.builder(client, this)
-        .setBulkActions(10000)
-        .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.MB))
-        .setFlushInterval(TimeValue.timeValueSeconds(5))
-        .setConcurrentRequests(1)
-        .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(100), 3))
-        .build();
-  }
-
-  @Override
-  public void beforeBulk(long executionId, BulkRequest request) {
-    log.debug("Exporting bulk {} with {} records", executionId, request.numberOfActions());
-  }
-
-  @Override
-  public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
-    log.debug(
-        "Successfully exported bulk {} with {} records", executionId, request.numberOfActions());
-  }
-
-  @Override
-  public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-    log.error(
-        "Failed to export bulk {} with {} records",
-        executionId,
-        request.numberOfActions(),
-        failure);
   }
 }

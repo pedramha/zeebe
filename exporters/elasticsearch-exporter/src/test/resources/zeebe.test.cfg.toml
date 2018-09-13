@@ -1,3 +1,5 @@
 [[exporters]]
 id = "elasticsearch"
 className = "io.zeebe.exporter.ElasticsearchExporter"
+  [exporters.args]
+  clusterName = "test"
