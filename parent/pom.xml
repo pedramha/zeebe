@@ -55,6 +55,7 @@
     <plugin.version.checkstyle>3.0.0</plugin.version.checkstyle>
     <plugin.version.compiler>3.8.0</plugin.version.compiler>
     <plugin.version.exec>1.6.0</plugin.version.exec>
+    <plugin.version.failsafe>2.22.0</plugin.version.failsafe>
     <plugin.version.fmt>2.5.1</plugin.version.fmt>
     <plugin.version.license>3.0</plugin.version.license>
     <plugin.version.protobuf-maven-plugin>0.5.1</plugin.version.protobuf-maven-plugin>
@@ -221,7 +222,7 @@
 
       <dependency>
         <groupId>org.elasticsearch.client</groupId>
-        <artifactId>transport</artifactId>
+        <artifactId>elasticsearch-rest-high-level-client</artifactId>
         <version>${version.elasticsearch}</version>
       </dependency>
 
@@ -327,6 +328,30 @@
           </configuration>
         </plugin>
 
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <version>${plugin.version.failsafe}</version>
+          <executions>
+            <execution>
+              <goals>
+                <goal>integration-test</goal>
+                <goal>verify</goal>
+              </goals>
+            </execution>
+          </executions>
+          <configuration>
+            <failIfNoTests>false</failIfNoTests>
+            <trimStackTrace>false</trimStackTrace>
+            <redirectTestOutputToFile>true</redirectTestOutputToFile>
+            <properties>
+              <property>
+                <name>listener</name>
+                <value>io.zeebe.ZeebeTestListener</value>
+              </property>
+            </properties>
+          </configuration>
+        </plugin>
 
         <!-- Build Helper Plugin -->
         <plugin>

@@ -22,26 +22,19 @@ import io.zeebe.exporter.spi.Exporter;
 import io.zeebe.util.StreamUtil;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
+import java.time.Duration;
+import org.apache.http.HttpHost;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.slf4j.Logger;
 
 public class ElasticsearchExporter implements Exporter {
 
   public static final String ZEEBE_RECORDS_TEMPLATE_FILENAME = "/zeebe_records_template.json";
-
-  static {
-    // workaround if the gateway already configured netty
-    // https://discuss.elastic.co/t/elasticsearch-5-4-1-availableprocessors-is-already-set/88036
-    // TODO(menski): find out what happens if the gateway is not started
-    System.setProperty("es.set.netty.runtime.available.processors", "false");
-  }
 
   private Logger log;
   private Controller controller;
@@ -49,9 +42,11 @@ public class ElasticsearchExporter implements Exporter {
   private String id;
   private ElasticsearchExporterConfiguration configuration;
 
-  private TransportClient client;
-  private BulkRequestBuilder requestBuilder;
+  private RestHighLevelClient client;
+  private BulkRequest bulkRequest;
   private IndexRequestFactory indexRequestFactory;
+
+  private long lastPosition = -1;
 
   @Override
   public void configure(Context context) {
@@ -65,22 +60,23 @@ public class ElasticsearchExporter implements Exporter {
   @Override
   public void open(Controller controller) {
     this.controller = controller;
-    try {
-      client = createClient();
-    } catch (Exception e) {
-      throw new RuntimeException(
-          "Exporter " + id + " to connect to elasticsearch with configuration: " + configuration,
-          e);
-    }
-
-    requestBuilder = client.prepareBulk();
-    indexRequestFactory = new IndexRequestFactory(client);
+    client = createClient();
+    bulkRequest = new BulkRequest();
+    indexRequestFactory = new IndexRequestFactory();
 
     if (configuration.isCreateTemplate()) {
       createTemplate();
     }
 
+    flushAndReschedule();
+
     log.debug("Exporter {} opened", id);
+  }
+
+  private void flushAndReschedule() {
+    flush();
+    controller.scheduleTask(
+        Duration.ofSeconds(configuration.getFlushDelay()), this::flushAndReschedule);
   }
 
   private void createTemplate() {
@@ -92,13 +88,12 @@ public class ElasticsearchExporter implements Exporter {
         log.error("Unable to read index template from file: {}", templateFilename);
       } else {
         final String templateName = configuration.getTemplateName();
-        client
-            .admin()
-            .indices()
-            .preparePutTemplate(templateName)
-            .setSource(StreamUtil.read(resourceAsStream), XContentType.JSON)
-            .execute()
-            .actionGet();
+
+        final PutIndexTemplateRequest request =
+            new PutIndexTemplateRequest(templateName)
+                .source(StreamUtil.read(resourceAsStream), XContentType.JSON);
+        // TODO(menski): check response
+        client.indices().putTemplate(request, RequestOptions.DEFAULT);
         log.info("Updated index template '{}' from file '{}'", templateName, templateFilename);
       }
     } catch (IOException e) {
@@ -108,33 +103,54 @@ public class ElasticsearchExporter implements Exporter {
 
   @Override
   public void close() {
-    // requestBuilder.get();
-    client.close();
+    flush();
+
+    try {
+      client.close();
+    } catch (IOException e) {
+      log.warn("Failed to close elasticsearch client", e);
+    }
     log.debug("Exporter {} closed", id);
+  }
+
+  private void flush() {
+    if (bulkRequest.numberOfActions() > 0) {
+      try {
+        client.bulk(bulkRequest, RequestOptions.DEFAULT);
+        bulkRequest = new BulkRequest();
+        controller.updateLastExportedRecordPosition(lastPosition);
+      } catch (Exception e) {
+        log.warn("Failed to export bulk", e);
+      }
+    }
+  }
+
+  private boolean shouldFlush() {
+    return bulkRequest.numberOfActions() >= configuration.getFlushSize();
   }
 
   @Override
   public void export(Record record) {
     try {
-      indexRequestFactory.create(record).get();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
+      bulkRequest.add(indexRequestFactory.create(record));
+      lastPosition = record.getPosition();
+      if (shouldFlush()) {
+        flush();
+      }
+    } catch (IOException e) {
+      throw new RuntimeException("Failed to add index request to bulk", e);
     }
   }
 
-  private TransportClient createClient() throws UnknownHostException {
-    final Settings settings =
-        Settings.builder().put("cluster.name", configuration.getClusterName()).build();
-
-    final TransportAddress transportAddress =
-        new TransportAddress(
-            InetAddress.getByName(configuration.getHost()), configuration.getPort());
-
+  private RestHighLevelClient createClient() {
     log.info(
         "Connecting to elasticsearch with configuration {}:{}/{}",
         configuration.getHost(),
         configuration.getPort(),
         configuration.getClusterName());
-    return new PreBuiltTransportClient(settings).addTransportAddress(transportAddress);
+
+    // TODO(menski): reduce thread pool
+    return new RestHighLevelClient(
+        RestClient.builder(new HttpHost(configuration.getHost(), configuration.getPort(), "http")));
   }
 }

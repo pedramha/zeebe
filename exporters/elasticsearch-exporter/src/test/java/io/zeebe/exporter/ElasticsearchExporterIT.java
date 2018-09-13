@@ -27,16 +27,16 @@ import io.zeebe.protocol.intent.WorkflowInstanceIntent;
 import io.zeebe.test.ZeebeTestRule;
 import io.zeebe.test.util.TestUtil;
 import io.zeebe.test.util.record.RecordingExporter;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import org.apache.http.HttpHost;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.transport.client.PreBuiltTransportClient;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestHighLevelClient;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -55,14 +55,14 @@ public class ElasticsearchExporterIT {
           .done();
 
   private ZeebeClient zeebeClient;
-  private TransportClient esClient;
+  private RestHighLevelClient esClient;
   private IndexRequestFactory indexRequestFactory;
 
   @Before
-  public void setUp() throws UnknownHostException {
+  public void setUp() {
     zeebeClient = testRule.getClient();
     esClient = createElasticsearchClient();
-    indexRequestFactory = new IndexRequestFactory(null);
+    indexRequestFactory = new IndexRequestFactory();
   }
 
   @Test
@@ -120,13 +120,18 @@ public class ElasticsearchExporterIT {
   }
 
   private void assertRecordExported(Record<?> record) {
-    final GetResponse response =
-        esClient
-            .prepareGet()
-            .setIndex(indexRequestFactory.indexFor(record))
-            .setType(indexRequestFactory.typeFor(record))
-            .setId(indexRequestFactory.idFor(record))
-            .get();
+    final GetRequest getRequest =
+        new GetRequest(
+            indexRequestFactory.indexFor(record),
+            indexRequestFactory.typeFor(record),
+            indexRequestFactory.idFor(record));
+
+    final GetResponse response;
+    try {
+      response = esClient.get(getRequest, RequestOptions.DEFAULT);
+    } catch (IOException e) {
+      throw new AssertionError("Failed to fetch doc", e);
+    }
 
     assertThat(response.isExists()).isTrue();
 
@@ -157,12 +162,7 @@ public class ElasticsearchExporterIT {
     assertThat(source.get("value")).isEqualTo(record.getValue().toJson());
   }
 
-  protected TransportClient createElasticsearchClient() throws UnknownHostException {
-    final Settings settings = Settings.builder().put("cluster.name", "test").build();
-
-    final TransportAddress transportAddress =
-        new TransportAddress(InetAddress.getByName("localhost"), 9300);
-
-    return new PreBuiltTransportClient(settings).addTransportAddress(transportAddress);
+  protected RestHighLevelClient createElasticsearchClient() {
+    return new RestHighLevelClient(RestClient.builder(new HttpHost("localhost", 9200, "http")));
   }
 }

@@ -18,10 +18,12 @@ package io.zeebe.exporter;
 public class ElasticsearchExporterConfiguration {
 
   private String host = "localhost";
-  private int port = 9300;
+  private int port = 9200;
   private String clusterName = "elasticsearch";
   private boolean createTemplate = true;
   private String templateName = "zeebe-records";
+  private int flushDelay = 5;
+  private int flushSize = 10_000;
 
   public String getHost() {
     return host;
@@ -63,6 +65,24 @@ public class ElasticsearchExporterConfiguration {
     this.templateName = templateName;
   }
 
+  public int getFlushDelay() {
+    return flushDelay;
+  }
+
+  public ElasticsearchExporterConfiguration setFlushDelay(int flushDelay) {
+    this.flushDelay = flushDelay;
+    return this;
+  }
+
+  public int getFlushSize() {
+    return flushSize;
+  }
+
+  public ElasticsearchExporterConfiguration setFlushSize(int flushSize) {
+    this.flushSize = flushSize;
+    return this;
+  }
+
   @Override
   public String toString() {
     return "ElasticsearchExporterConfiguration{"
@@ -79,6 +99,10 @@ public class ElasticsearchExporterConfiguration {
         + ", templateName='"
         + templateName
         + '\''
+        + ", flushDelay="
+        + flushDelay
+        + ", flushSize="
+        + flushSize
         + '}';
   }
 }

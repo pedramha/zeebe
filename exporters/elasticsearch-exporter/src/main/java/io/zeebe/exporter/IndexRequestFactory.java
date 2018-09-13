@@ -22,33 +22,26 @@ import io.zeebe.exporter.record.RecordMetadata;
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 public class IndexRequestFactory {
 
   private final String indexPrefix;
   private final DateTimeFormatter formatter;
-  private final TransportClient client;
 
-  public IndexRequestFactory(final TransportClient client) {
-    this(client, "zeebe-record");
+  public IndexRequestFactory() {
+    this("zeebe-record");
   }
 
-  public IndexRequestFactory(TransportClient client, String indexPrefix) {
-    this.client = client;
+  public IndexRequestFactory(String indexPrefix) {
     this.indexPrefix = indexPrefix;
     this.formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
   }
 
-  public IndexRequestBuilder create(final Record<?> record) throws IOException {
-    return client
-        .prepareIndex()
-        .setIndex(indexFor(record))
-        .setType(typeFor(record))
-        .setId(idFor(record))
-        .setSource(sourceFor(record));
+  public IndexRequest create(final Record<?> record) throws IOException {
+    return new IndexRequest(indexFor(record), typeFor(record), idFor(record))
+        .source(sourceFor(record));
   }
 
   public XContentBuilder sourceFor(final Record<?> record) throws IOException {

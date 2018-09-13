@@ -3,3 +3,5 @@ id = "elasticsearch"
 className = "io.zeebe.exporter.ElasticsearchExporter"
   [exporters.args]
   clusterName = "test"
+  flushDelay = 1
+  flushSize = 1

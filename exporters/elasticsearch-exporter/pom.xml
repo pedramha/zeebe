@@ -25,7 +25,7 @@
 
     <dependency>
       <groupId>org.elasticsearch.client</groupId>
-      <artifactId>transport</artifactId>
+      <artifactId>elasticsearch-rest-high-level-client</artifactId>
     </dependency>
 
     <dependency>
@@ -81,16 +81,8 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
-        <version>2.22.0</version>
-        <executions>
-          <execution>
-            <goals>
-              <goal>integration-test</goal>
-              <goal>verify</goal>
-            </goals>
-          </execution>
-        </executions>
       </plugin>
+
       <plugin>
         <groupId>com.github.alexcojocaru</groupId>
         <artifactId>elasticsearch-maven-plugin</artifactId>
