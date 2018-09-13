@@ -74,7 +74,7 @@ public class ElasticsearchExporter implements Exporter {
     }
 
     requestBuilder = client.prepareBulk();
-    indexRequestFactory = new IndexRequestFactory();
+    indexRequestFactory = new IndexRequestFactory(client);
 
     if (configuration.isCreateTemplate()) {
       createTemplate();
@@ -108,29 +108,18 @@ public class ElasticsearchExporter implements Exporter {
 
   @Override
   public void close() {
-    requestBuilder.get();
+    // requestBuilder.get();
     client.close();
     log.debug("Exporter {} closed", id);
   }
 
   @Override
   public void export(Record record) {
-    client
-        .prepareIndex()
-        .setIndex(indexRequestFactory.indexFor(record))
-        .setType(indexRequestFactory.typeFor(record))
-        .setId(indexRequestFactory.idFor(record))
-        .setSource(record.toJson(), XContentType.JSON)
-        .get();
-    /*
-    requestBuilder.add(
-        client
-            .prepareIndex()
-            .setIndex(indexRequestFactory.indexFor(record))
-            .setType(indexRequestFactory.typeFor(record))
-            .setId(indexRequestFactory.idFor(record))
-            .setSource(record.toJson(), XContentType.JSON));
-            */
+    try {
+      indexRequestFactory.create(record).get();
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   private TransportClient createClient() throws UnknownHostException {

@@ -68,7 +68,7 @@ public class RecordingExporter implements Exporter {
   }
 
   @SuppressWarnings("unchecked")
-  protected static <T extends RecordValue> Stream<Record<T>> records(
+  public static <T extends RecordValue> Stream<Record<T>> records(
       final ValueType valueType, final Class<T> valueClass) {
     final Spliterator<Record<?>> spliterator =
         Spliterators.spliteratorUnknownSize(new RecordIterator(), Spliterator.ORDERED);

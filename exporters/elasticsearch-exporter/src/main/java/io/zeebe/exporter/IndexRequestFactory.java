@@ -15,29 +15,60 @@
  */
 package io.zeebe.exporter;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+
 import io.zeebe.exporter.record.Record;
+import io.zeebe.exporter.record.RecordMetadata;
+import java.io.IOException;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 public class IndexRequestFactory {
 
   private final String indexPrefix;
   private final DateTimeFormatter formatter;
+  private final TransportClient client;
 
-  public IndexRequestFactory() {
-    this("zeebe-records");
+  public IndexRequestFactory(final TransportClient client) {
+    this(client, "zeebe-record");
   }
 
-  public IndexRequestFactory(String indexPrefix) {
+  public IndexRequestFactory(TransportClient client, String indexPrefix) {
+    this.client = client;
     this.indexPrefix = indexPrefix;
-    this.formatter = DateTimeFormatter.ofPattern("-yyyy-MM-dd").withZone(ZoneOffset.UTC);
+    this.formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
   }
 
-  public IndexRequest create(final Record<?> record) {
-    return new IndexRequest(indexFor(record), typeFor(record), idFor(record))
-        .source(record.toJson(), XContentType.JSON);
+  public IndexRequestBuilder create(final Record<?> record) throws IOException {
+    return client
+        .prepareIndex()
+        .setIndex(indexFor(record))
+        .setType(typeFor(record))
+        .setId(idFor(record))
+        .setSource(sourceFor(record));
+  }
+
+  public XContentBuilder sourceFor(final Record<?> record) throws IOException {
+    final RecordMetadata metadata = record.getMetadata();
+    return jsonBuilder()
+        .startObject()
+        .field("position", record.getPosition())
+        .field("raftTerm", record.getRaftTerm())
+        .field("sourceRecordPosition", record.getSourceRecordPosition())
+        .field("producerId", record.getProducerId())
+        .field("key", record.getKey())
+        .field("timestamp", record.getTimestamp().toEpochMilli())
+        .field("intent", metadata.getIntent())
+        .field("partitionId", metadata.getPartitionId())
+        .field("recordType", metadata.getRecordType())
+        .field("rejectionType", metadata.getRejectionType())
+        .field("rejectionReason", metadata.getRejectionReason())
+        .field("valueType", metadata.getValueType())
+        .field("value", record.getValue().toJson())
+        .endObject();
   }
 
   protected String indexFor(final Record<?> record) {

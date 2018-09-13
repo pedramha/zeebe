@@ -1,6 +1,6 @@
 {
   "index_patterns": [
-    "zeebe-records-*"
+    "zeebe-record-*"
   ],
   "settings": {
     "number_of_shards": 1,
@@ -26,28 +26,29 @@
           "type": "long"
         },
         "timestamp": {
-          "type": "date"
+          "type": "date",
+          "format": "epoch_millis"
         },
         "intent": {
-          "type": "text"
+          "type": "keyword"
         },
         "partitionId": {
           "type": "integer"
         },
         "recordType": {
-          "type": "text"
+          "type": "keyword"
         },
         "rejectionType": {
-          "type": "text"
+          "type": "keyword"
         },
         "rejectionReason": {
           "type": "text"
         },
         "valueType": {
-          "type": "text"
+          "type": "keyword"
         },
         "value": {
-          "type": "object"
+          "type": "text"
         }
       }
     }
