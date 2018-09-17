@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class MongoDbConfiguration {
@@ -41,25 +42,35 @@ public class MongoDbConfiguration {
   private List<String> compressors = DEFAULT_COMPRESSORS;
   private List<ClusterMember> hosts = DEFAULT_HOSTS;
   private boolean useSsl = false;
-  private int batchSize = 100;
-  private String flushInterval = "1m";
+  private int flushSize = 100;
+  private String flushDelay = "1m";
+  private String timeout = "10s";
 
   private String database;
   private String collection;
 
-  private transient Duration batchFlushInterval;
+  private transient Duration timeoutDuration;
+  private transient Duration flushDelayDuration;
   private transient MongoClientSettings clientSettings;
 
-  public Duration getFlushInterval() {
-    if (batchFlushInterval == null) {
-      batchFlushInterval = DurationUtil.parse(flushInterval);
+  public Duration getFlushDelay() {
+    if (flushDelayDuration == null) {
+      flushDelayDuration = DurationUtil.parse(flushDelay);
     }
 
-    return batchFlushInterval;
+    return flushDelayDuration;
   }
 
-  public int getBatchSize() {
-    return batchSize;
+  public Duration getTimeoutDuration() {
+    if (timeoutDuration == null) {
+      timeoutDuration = DurationUtil.parse(timeout);
+    }
+
+    return timeoutDuration;
+  }
+
+  public int getFlushSize() {
+    return flushSize;
   }
 
   public String getDatabase() {
@@ -81,7 +92,13 @@ public class MongoDbConfiguration {
       clientSettings =
           MongoClientSettings.builder()
               .writeConcern(WriteConcern.MAJORITY)
-              .applyToClusterSettings(b -> b.hosts(hosts))
+              .applicationName("zeebe-exporter")
+              .applyToClusterSettings(
+                  b -> {
+                    b.hosts(hosts);
+                    b.serverSelectionTimeout(
+                        getTimeoutDuration().toMillis(), TimeUnit.MILLISECONDS);
+                  })
               .applyToSslSettings(b -> b.enabled(useSsl))
               .compressorList(compressors)
               .build();

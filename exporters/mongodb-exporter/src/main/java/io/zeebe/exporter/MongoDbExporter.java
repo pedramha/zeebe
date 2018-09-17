@@ -16,13 +16,14 @@
 package io.zeebe.exporter;
 
 import com.mongodb.bulk.BulkWriteResult;
+import com.mongodb.client.ClientSession;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.BulkWriteOptions;
-import com.mongodb.client.model.UpdateOneModel;
-import com.mongodb.client.model.UpdateOptions;
+import com.mongodb.client.model.ReplaceOneModel;
+import com.mongodb.client.model.ReplaceOptions;
 import com.mongodb.client.model.WriteModel;
 import io.zeebe.exporter.context.Context;
 import io.zeebe.exporter.context.Controller;
@@ -50,7 +51,7 @@ public class MongoDbExporter implements Exporter {
     config = context.getConfiguration().instantiate(MongoDbConfiguration.class);
     logger = context.getLogger();
     id = context.getConfiguration().getId();
-    batch = new ArrayList<>(config.getBatchSize());
+    batch = new ArrayList<>(config.getFlushSize());
 
     logger.trace("Configured!");
   }
@@ -62,7 +63,7 @@ public class MongoDbExporter implements Exporter {
 
     final MongoDatabase db = client.getDatabase(config.getDatabase());
     collection = db.getCollection(config.getCollection());
-    controller.scheduleTask(config.getFlushInterval(), this::flushBatchIfPossible);
+    controller.scheduleTask(config.getFlushDelay(), this::flushBatchIfPossible);
 
     logger.trace("Opened!");
   }
@@ -89,15 +90,17 @@ public class MongoDbExporter implements Exporter {
     logger.trace(
         "Exporting record {}-{}", record.getMetadata().getPartitionId(), record.getPosition());
 
+    if (batch.size() < config.getFlushSize()) {
+      batch.add(record);
+    }
+
     if (shouldFlushBatch()) {
       flushBatch();
-    } else {
-      batch.add(record);
     }
   }
 
   private boolean shouldFlushBatch() {
-    return batch.size() >= config.getBatchSize();
+    return batch.size() >= config.getFlushSize();
   }
 
   private MongoClient createClient() {
@@ -110,21 +113,30 @@ public class MongoDbExporter implements Exporter {
       return;
     }
 
+    final ClientSession session = client.startSession();
     final long lastPosition = batch.get(batch.size() - 1).getPosition();
-    final UpdateOptions modelOptions = new UpdateOptions().upsert(true);
+    final ReplaceOptions modelOptions = new ReplaceOptions().upsert(true);
     final List<WriteModel<Document>> writes =
         batch.stream().map(r -> newUpdateModel(r, modelOptions)).collect(Collectors.toList());
     final BulkWriteOptions options =
         new BulkWriteOptions().ordered(false).bypassDocumentValidation(false);
 
-    final BulkWriteResult result = collection.bulkWrite(writes, options);
-    if (result.getUpserts().size() == writes.size()) {
-      controller.updateLastExportedRecordPosition(lastPosition);
-      batch.clear();
+    session.startTransaction();
 
-      logger.trace("Flushed {} documents", writes.size());
-    } else {
-      throw new IncompleteBulkOperation(writes.size(), result.getUpserts().size());
+    try {
+      final BulkWriteResult result = collection.bulkWrite(writes, options);
+
+      if (result.getUpserts().size() == writes.size()) {
+        session.commitTransaction();
+        controller.updateLastExportedRecordPosition(lastPosition);
+        batch.clear();
+
+        logger.trace("Flushed {} documents", writes.size());
+      } else {
+        throw new IncompleteBulkOperation(writes.size(), result.getUpserts().size());
+      }
+    } finally {
+      session.close();
     }
   }
 
@@ -133,13 +145,13 @@ public class MongoDbExporter implements Exporter {
       flushBatch();
     }
 
-    controller.scheduleTask(config.getFlushInterval(), this::flushBatchIfPossible);
+    controller.scheduleTask(config.getFlushDelay(), this::flushBatchIfPossible);
   }
 
-  private UpdateOneModel<Document> newUpdateModel(
-      final Record record, final UpdateOptions options) {
+  private ReplaceOneModel<Document> newUpdateModel(
+      final Record record, final ReplaceOptions options) {
     final Document document = newDocument(record);
-    return new UpdateOneModel<>(new Document("_id", document.get("_id")), document, options);
+    return new ReplaceOneModel<>(new Document("_id", document.get("_id")), document, options);
   }
 
   private Document newDocument(final Record record) {

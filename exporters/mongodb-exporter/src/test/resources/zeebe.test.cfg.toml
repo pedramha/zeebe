@@ -1,0 +1,11 @@
+[[exporters]]
+id = "mongodb"
+className = "io.zeebe.exporter.MongoDbExporter"
+  [exporters.args]
+  host = "localhost"
+  port = "27017"
+  database = "test"
+  collection = "zeebe"
+  flushSize = 1
+  flushDelay = "1m"
+  timeout = "10s"
