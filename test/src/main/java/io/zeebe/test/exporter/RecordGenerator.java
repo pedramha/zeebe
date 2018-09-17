@@ -127,7 +127,7 @@ public class RecordGenerator {
   }
 
   private DeploymentResource generateDeploymentResource() {
-    
+
 
     return new DeploymentResourceImpl();
   }
