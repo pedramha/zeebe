@@ -65,7 +65,6 @@ pipeline {
 
                 stage('2 - JMH') {
                     // delete this line to also run JMH on feature branch
-                    when { anyOf { branch 'master'; branch 'develop' } }
                     agent { node { label 'ubuntu' } }
 
                     steps {
