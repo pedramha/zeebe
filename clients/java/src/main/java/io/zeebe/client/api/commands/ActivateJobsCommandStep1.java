@@ -31,7 +31,7 @@ public interface ActivateJobsCommandStep1 {
   interface ActivateJobsCommandStep2 {
 
     /**
-     * Set the maximal amount of jobs to activate. If less jobs are avaiable for activation the
+     * Set the maximal amount of jobs to activate. If less jobs are available for activation the
      * command will return a list with fewer jobs.
      *
      * @param amount the maximal number of jobs to activate
