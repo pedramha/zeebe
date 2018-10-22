@@ -79,6 +79,13 @@ public abstract class AbstractCatchEventBuilder<
     return myself;
   }
 
+  public B messageEventDefinition() {
+    final MessageEventDefinition messageEventDefinition = createEmptyMessageEventDefinition();
+    element.getEventDefinitions().add(messageEventDefinition);
+
+    return myself;
+  }
+
   /**
    * Sets an event definition for the given signal name. If already a signal with this name exists
    * it will be used, otherwise a new signal is created.
@@ -177,6 +184,7 @@ public abstract class AbstractCatchEventBuilder<
     return new ConditionalEventDefinitionBuilder(modelInstance, eventDefinition);
   }
 
+  @Override
   public B condition(String condition) {
     conditionalEventDefinition().condition(condition);
     return myself;

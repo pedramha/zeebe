@@ -38,6 +38,7 @@ public class ZeebeDesignTimeValidators {
     VALIDATORS.add(new ReceiveTaskValidator());
     VALIDATORS.add(new StartEventValidator());
     VALIDATORS.add(new IntermediateCatchEventValidator());
+    VALIDATORS.add(new BoundaryEventValidator());
     VALIDATORS.add(new SubProcessValidator());
     VALIDATORS.add(new ZeebeTaskDefinitionValidator());
     VALIDATORS.add(new ZeebeIoMappingValidator());

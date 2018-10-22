@@ -165,6 +165,37 @@ public class ZeebeValidationTest {
       },
       {
         Bpmn.createExecutableProcess("process")
+            .startEvent("start")
+            .serviceTask("task1", b -> b.zeebeTaskType("type"))
+            .boundaryEvent("receive")
+            .endEvent("endProcess")
+            .done(),
+        Arrays.asList(expect("receive", "Must have exactly one event definition!"))
+      },
+      {
+        Bpmn.createExecutableProcess("process")
+            .startEvent()
+            .serviceTask("task1", b -> b.zeebeTaskType("type"))
+            .boundaryEvent("event")
+            .timerWithCycle("timer")
+            .endEvent()
+            .done(),
+        Arrays.asList(
+            expect("event", "Event definition not supported; must be one of: message!"),
+            expect(TimerEventDefinition.class, "Event definition of this type is not supported"))
+      },
+      {
+        Bpmn.createExecutableProcess("process")
+            .startEvent()
+            .serviceTask("task1", b -> b.zeebeTaskType("type"))
+            .boundaryEvent("event")
+            .messageEventDefinition()
+            .endEvent()
+            .done(),
+        Arrays.asList(expect("event", "Must reference a message"))
+      },
+      {
+        Bpmn.createExecutableProcess("process")
             .startEvent()
             .endEvent("end")
             .signalEventDefinition("foo")
