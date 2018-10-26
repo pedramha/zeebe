@@ -199,10 +199,6 @@ public class StubBrokerRule extends ExternalResource {
     return channelHandler.getAllReceivedRequests();
   }
 
-  public SubscribedRecordBuilder newSubscribedEvent() {
-    return new SubscribedRecordBuilder(msgPackHelper, transport);
-  }
-
   public void stubTopologyRequest() {
     onTopologyRequest()
         .respondWith()
