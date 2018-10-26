@@ -63,9 +63,7 @@ public class JobTimeOutTest {
 
     createJob(jobType);
 
-    apiRule
-        .openJobSubscription(apiRule.getDefaultPartitionId(), jobType, timeout.toMillis())
-        .await();
+    apiRule.activateJob(apiRule.getDefaultPartitionId(), jobType, timeout.toMillis()).await();
     client.receiveFirstJobEvent(ACTIVATED);
 
     // when
@@ -84,9 +82,7 @@ public class JobTimeOutTest {
 
     createJob(jobType);
 
-    apiRule
-        .openJobSubscription(apiRule.getDefaultPartitionId(), jobType, timeout.toMillis())
-        .await();
+    apiRule.activateJob(apiRule.getDefaultPartitionId(), jobType, timeout.toMillis()).await();
     final Record activatedJob = client.receiveFirstJobEvent(ACTIVATED);
     client.completeJob(activatedJob.getKey(), "{}");
 
@@ -106,9 +102,7 @@ public class JobTimeOutTest {
 
     createJob(jobType);
 
-    apiRule
-        .openJobSubscription(apiRule.getDefaultPartitionId(), jobType, timeout.toMillis())
-        .await();
+    apiRule.activateJob(apiRule.getDefaultPartitionId(), jobType, timeout.toMillis()).await();
     final Record activatedJob = client.receiveFirstJobEvent(ACTIVATED);
     client.failJob(activatedJob.getKey(), 0);
 
@@ -126,7 +120,7 @@ public class JobTimeOutTest {
     final long jobKey1 = createJob(jobType);
     final long timeout = 10L;
 
-    apiRule.openJobSubscription(apiRule.getDefaultPartitionId(), jobType, timeout);
+    apiRule.activateJob(apiRule.getDefaultPartitionId(), jobType, timeout);
     client.receiveFirstJobEvent(ACTIVATED);
     brokerRule.getClock().addTime(JobStreamProcessor.TIME_OUT_POLLING_INTERVAL);
 
@@ -159,7 +153,7 @@ public class JobTimeOutTest {
     createJob(jobType);
 
     final long timeout = 10L;
-    apiRule.openJobSubscription(apiRule.getDefaultPartitionId(), jobType, timeout);
+    apiRule.activateJob(apiRule.getDefaultPartitionId(), jobType, timeout);
     client.receiveFirstJobEvent(ACTIVATED);
     brokerRule.getClock().addTime(JobStreamProcessor.TIME_OUT_POLLING_INTERVAL);
 
@@ -197,7 +191,7 @@ public class JobTimeOutTest {
     final long jobKey2 = createJob(jobType);
     final long timeout = 10L;
 
-    apiRule.openJobSubscription(apiRule.getDefaultPartitionId(), jobType, timeout);
+    apiRule.activateJob(apiRule.getDefaultPartitionId(), jobType, timeout);
 
     // when
     client.receiveJobs().withIntent(ACTIVATED).limit(2).count();

@@ -32,7 +32,6 @@ import io.zeebe.protocol.clientapi.RejectionType;
 import io.zeebe.protocol.clientapi.ValueType;
 import io.zeebe.protocol.intent.JobIntent;
 import io.zeebe.test.broker.protocol.clientapi.ClientApiRule;
-import io.zeebe.test.broker.protocol.clientapi.ControlMessageResponse;
 import io.zeebe.test.broker.protocol.clientapi.ExecuteCommandResponse;
 import io.zeebe.test.broker.protocol.clientapi.PartitionTestClient;
 import io.zeebe.test.util.record.RecordingExporter;
@@ -62,7 +61,7 @@ public class FailJobTest {
   public void shouldFail() {
     // given
     client.createJob(JOB_TYPE);
-    apiRule.openJobSubscription(JOB_TYPE).await();
+    apiRule.activateJob(JOB_TYPE).await();
     final Record<JobRecordValue> jobEvent = client.receiveFirstJobEvent(ACTIVATED);
     final int retries = 23;
 
@@ -91,11 +90,13 @@ public class FailJobTest {
   public void shouldFailJobAndRetry() {
     // given
     client.createJob(JOB_TYPE);
-    apiRule.openJobSubscription(JOB_TYPE).await();
+
+    apiRule.activateJob(JOB_TYPE).await();
     final Record jobEvent = client.receiveFirstJobEvent(JobIntent.ACTIVATED);
 
     // when
     final ExecuteCommandResponse response = client.failJob(jobEvent.getKey(), 3);
+    apiRule.activateJob(JOB_TYPE).await();
 
     // then
     assertThat(response.getSourceRecordPosition()).isGreaterThan(0L);
@@ -113,8 +114,7 @@ public class FailJobTest {
     assertThat(republishedEvent.getPosition()).isNotEqualTo(jobEvent.getPosition());
 
     // and the job lifecycle is correct
-    final List<Record> jobEvents = client.receiveJobs().limit(8).collect(Collectors.toList());
-
+    final List<Record> jobEvents = client.receiveJobs().limit(6).collect(Collectors.toList());
     assertThat(jobEvents)
         .extracting(Record::getMetadata)
         .extracting(
@@ -122,12 +122,23 @@ public class FailJobTest {
         .containsExactly(
             tuple(RecordType.COMMAND, ValueType.JOB, JobIntent.CREATE),
             tuple(RecordType.EVENT, ValueType.JOB, JobIntent.CREATED),
-            tuple(RecordType.COMMAND, ValueType.JOB, JobIntent.ACTIVATE),
             tuple(RecordType.EVENT, ValueType.JOB, JobIntent.ACTIVATED),
             tuple(RecordType.COMMAND, ValueType.JOB, JobIntent.FAIL),
             tuple(RecordType.EVENT, ValueType.JOB, FAILED),
-            tuple(RecordType.COMMAND, ValueType.JOB, JobIntent.ACTIVATE),
             tuple(RecordType.EVENT, ValueType.JOB, JobIntent.ACTIVATED));
+
+    final List<Record> jobActivateCommands =
+        client.receiveJobBatchs().limit(4).collect(Collectors.toList());
+
+    assertThat(jobActivateCommands)
+        .extracting(Record::getMetadata)
+        .extracting(
+            RecordMetadata::getRecordType, RecordMetadata::getValueType, RecordMetadata::getIntent)
+        .containsExactly(
+            tuple(RecordType.COMMAND, ValueType.JOB_BATCH, JobIntent.ACTIVATE),
+            tuple(RecordType.EVENT, ValueType.JOB_BATCH, JobIntent.ACTIVATED),
+            tuple(RecordType.COMMAND, ValueType.JOB_BATCH, JobIntent.ACTIVATE),
+            tuple(RecordType.EVENT, ValueType.JOB_BATCH, JobIntent.ACTIVATED));
   }
 
   @Test
@@ -149,13 +160,8 @@ public class FailJobTest {
   public void shouldRejectFailIfJobAlreadyFailed() {
     // given
     client.createJob(JOB_TYPE);
-
-    final ControlMessageResponse subscriptionResponse =
-        apiRule.openJobSubscription(JOB_TYPE).await();
-    final long subscriberKey = (long) subscriptionResponse.getData().get("subscriberKey");
-
+    apiRule.activateJob(JOB_TYPE).await();
     final Record jobEvent = client.receiveFirstJobEvent(JobIntent.ACTIVATED);
-    apiRule.closeJobSubscription(subscriberKey).await();
 
     client.failJob(jobEvent.getKey(), 3);
 
@@ -188,7 +194,7 @@ public class FailJobTest {
   public void shouldRejectFailIfJobCompleted() {
     // given
     client.createJob(JOB_TYPE);
-    apiRule.openJobSubscription(JOB_TYPE).await();
+    apiRule.activateJob(JOB_TYPE).await();
 
     final Record<JobRecordValue> jobEvent = client.receiveFirstJobEvent(JobIntent.ACTIVATED);
     client.completeJob(jobEvent.getKey(), jobEvent.getValue().getPayload());

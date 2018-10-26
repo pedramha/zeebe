@@ -59,7 +59,7 @@ public class JobUpdateRetriesTest {
     // given
     client.createJob(JOB_TYPE);
 
-    apiRule.openJobSubscription(JOB_TYPE).await();
+    apiRule.activateJob(JOB_TYPE).await();
 
     final Record<JobRecordValue> jobEvent = client.receiveFirstJobEvent(JobIntent.ACTIVATED);
 
@@ -96,7 +96,7 @@ public class JobUpdateRetriesTest {
     // given
     client.createJob(JOB_TYPE);
 
-    apiRule.openJobSubscription(JOB_TYPE).await();
+    apiRule.activateJob(JOB_TYPE).await();
 
     final Record jobEvent = client.receiveFirstJobEvent(JobIntent.ACTIVATED);
 
@@ -156,7 +156,7 @@ public class JobUpdateRetriesTest {
   public void shouldRejectUpdateRetriesIfJobCompleted() {
     // given
     client.createJob(JOB_TYPE);
-    apiRule.openJobSubscription(JOB_TYPE).await();
+    apiRule.activateJob(JOB_TYPE).await();
 
     final Record<JobRecordValue> jobEvent = client.receiveFirstJobEvent(JobIntent.ACTIVATED);
     client.completeJob(jobEvent.getKey(), "{}");
@@ -176,7 +176,7 @@ public class JobUpdateRetriesTest {
     // given
     client.createJob(JOB_TYPE);
 
-    apiRule.openJobSubscription(JOB_TYPE).await();
+    apiRule.activateJob(JOB_TYPE).await();
 
     final Record jobEvent = client.receiveFirstJobEvent(JobIntent.ACTIVATED);
 
@@ -195,7 +195,7 @@ public class JobUpdateRetriesTest {
     // given
     client.createJob(JOB_TYPE);
 
-    apiRule.openJobSubscription(JOB_TYPE).await();
+    apiRule.activateJob(JOB_TYPE).await();
 
     final Record jobEvent = client.receiveFirstJobEvent(JobIntent.ACTIVATED);
 
@@ -216,7 +216,7 @@ public class JobUpdateRetriesTest {
     // given
     client.createJob(JOB_TYPE);
 
-    apiRule.openJobSubscription(JOB_TYPE).await();
+    apiRule.activateJob(JOB_TYPE).await();
 
     final Record jobEvent = client.receiveFirstJobEvent(JobIntent.ACTIVATED);
 
