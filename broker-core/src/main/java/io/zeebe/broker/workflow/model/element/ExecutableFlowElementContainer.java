@@ -17,8 +17,7 @@
  */
 package io.zeebe.broker.workflow.model.element;
 
-public class ExecutableFlowElementContainer extends ExecutableFlowNode {
-
+public class ExecutableFlowElementContainer extends ExecutableActivityElement {
   private ExecutableFlowNode startEvent;
 
   public ExecutableFlowElementContainer(String id) {

@@ -24,6 +24,7 @@ import io.zeebe.model.bpmn.instance.CompensateEventDefinition;
 import io.zeebe.model.bpmn.instance.IntermediateCatchEvent;
 import io.zeebe.model.bpmn.instance.Message;
 import io.zeebe.model.bpmn.instance.ReceiveTask;
+import io.zeebe.model.bpmn.instance.TimerEventDefinition;
 import io.zeebe.model.bpmn.instance.zeebe.ZeebeIoMapping;
 import io.zeebe.model.bpmn.instance.zeebe.ZeebeOutputBehavior;
 import io.zeebe.model.bpmn.instance.zeebe.ZeebeSubscription;

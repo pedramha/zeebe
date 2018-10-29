@@ -42,12 +42,14 @@ public class ActivityHandler implements ModelElementTransformer<Activity> {
   }
 
   private void bindLifecycle(TransformContext context, final ExecutableFlowNode activity) {
-    activity.bindLifecycleState(WorkflowInstanceIntent.ELEMENT_READY, BpmnStep.APPLY_INPUT_MAPPING);
+    activity.bindLifecycleState(WorkflowInstanceIntent.ELEMENT_READY, BpmnStep.SETUP_ACTIVITY);
     // ACTIVATED is bound per activity type
     activity.bindLifecycleState(
-        WorkflowInstanceIntent.ELEMENT_COMPLETING, BpmnStep.APPLY_OUTPUT_MAPPING);
+        WorkflowInstanceIntent.ELEMENT_COMPLETING, BpmnStep.COMPLETE_ACTIVITY);
     activity.bindLifecycleState(
         WorkflowInstanceIntent.ELEMENT_COMPLETED, context.getCurrentFlowNodeOutgoingStep());
+    activity.bindLifecycleState(
+        WorkflowInstanceIntent.ELEMENT_TERMINATING, BpmnStep.TERMINATE_ACTIVITY);
     activity.bindLifecycleState(
         WorkflowInstanceIntent.ELEMENT_TERMINATED, BpmnStep.PROPAGATE_TERMINATION);
   }

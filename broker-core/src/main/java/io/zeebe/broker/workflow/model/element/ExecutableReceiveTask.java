@@ -17,7 +17,7 @@
  */
 package io.zeebe.broker.workflow.model.element;
 
-public class ExecutableReceiveTask extends ExecutableFlowNode
+public class ExecutableReceiveTask extends ExecutableActivityElement
     implements ExecutableMessageCatchElement {
 
   public ExecutableReceiveTask(String id) {

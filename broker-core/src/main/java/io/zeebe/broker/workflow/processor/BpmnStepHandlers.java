@@ -20,9 +20,13 @@ package io.zeebe.broker.workflow.processor;
 import io.zeebe.broker.subscription.command.SubscriptionCommandSender;
 import io.zeebe.broker.workflow.model.BpmnStep;
 import io.zeebe.broker.workflow.model.element.ExecutableFlowElement;
-import io.zeebe.broker.workflow.processor.activity.InputMappingHandler;
-import io.zeebe.broker.workflow.processor.activity.OutputMappingHandler;
+import io.zeebe.broker.workflow.processor.activity.CompleteActivityHandler;
 import io.zeebe.broker.workflow.processor.activity.PropagateTerminationHandler;
+import io.zeebe.broker.workflow.processor.activity.SetupActivityHandler;
+import io.zeebe.broker.workflow.processor.activity.TerminateActivityHandler;
+import io.zeebe.broker.workflow.processor.boundary.ProcessBoundaryEventHandler;
+import io.zeebe.broker.workflow.processor.flownode.ActivateElementHandler;
+import io.zeebe.broker.workflow.processor.flownode.CompleteElementHandler;
 import io.zeebe.broker.workflow.processor.flownode.ConsumeTokenHandler;
 import io.zeebe.broker.workflow.processor.flownode.TakeSequenceFlowHandler;
 import io.zeebe.broker.workflow.processor.flownode.TerminateElementHandler;
@@ -56,10 +60,23 @@ public class BpmnStepHandlers {
       WorkflowState workflowState,
       DueDateTimerChecker timerChecker) {
 
+    // flow element
+    stepHandlers.put(BpmnStep.ACTIVATE_ELEMENT, new ActivateElementHandler());
+    stepHandlers.put(BpmnStep.COMPLETE_ELEMENT, new CompleteElementHandler());
+    stepHandlers.put(BpmnStep.TERMINATE_ELEMENT, new TerminateElementHandler());
+
     // activity
     stepHandlers.put(BpmnStep.CREATE_JOB, new CreateJobHandler());
-    stepHandlers.put(BpmnStep.APPLY_INPUT_MAPPING, new InputMappingHandler());
-    stepHandlers.put(BpmnStep.APPLY_OUTPUT_MAPPING, new OutputMappingHandler());
+    stepHandlers.put(
+        BpmnStep.SETUP_ACTIVITY,
+        new SetupActivityHandler(subscriptionCommandSender, workflowState));
+    stepHandlers.put(
+        BpmnStep.COMPLETE_ACTIVITY, new CompleteActivityHandler(subscriptionCommandSender));
+    stepHandlers.put(BpmnStep.TERMINATE_ACTIVITY, new TerminateActivityHandler());
+
+    // boundary events
+    stepHandlers.put(
+        BpmnStep.PROCESS_BOUNDARY_EVENT, new ProcessBoundaryEventHandler(workflowState));
 
     // exclusive gateway
     stepHandlers.put(BpmnStep.EXCLUSIVE_SPLIT, new ExclusiveSplitHandler());
@@ -81,7 +98,6 @@ public class BpmnStepHandlers {
     stepHandlers.put(BpmnStep.PARALLEL_SPLIT, new ParallelSplitHandler());
 
     // termination
-    stepHandlers.put(BpmnStep.TERMINATE_ELEMENT, new TerminateElementHandler());
     stepHandlers.put(BpmnStep.TERMINATE_JOB_TASK, new TerminateServiceTaskHandler());
     stepHandlers.put(BpmnStep.TERMINATE_TIMER, new TerminateTimerHandler(workflowState));
     stepHandlers.put(

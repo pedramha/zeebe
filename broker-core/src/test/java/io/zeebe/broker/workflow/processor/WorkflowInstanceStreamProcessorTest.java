@@ -81,6 +81,21 @@ public class WorkflowInstanceStreamProcessorTest {
               c -> c.message(m -> m.name("order canceled").zeebeCorrelationKey("$.orderId")))
           .done();
 
+  private static final BpmnModelInstance INTERRUPTING_MESSAGE_BOUNDARY_WORKFLOW =
+      Bpmn.createExecutableProcess(PROCESS_ID)
+          .startEvent("start")
+          .sequenceFlowId("taskIn")
+          .serviceTask("task", b -> b.zeebeTaskType("taskType"))
+          .boundaryEvent("boundary")
+          .cancelActivity(true)
+          .message(b -> b.name("message").zeebeCorrelationKey("$.id"))
+          .sequenceFlowId("boundaryOut")
+          .endEvent("boundaryEnd")
+          .moveToActivity("task")
+          .sequenceFlowId("taskOut")
+          .endEvent("taskEnd")
+          .done();
+
   public StreamProcessorRule envRule = new StreamProcessorRule();
   public WorkflowInstanceStreamProcessorRule streamProcessorRule =
       new WorkflowInstanceStreamProcessorRule(envRule);
@@ -367,7 +382,8 @@ public class WorkflowInstanceStreamProcessorTest {
             "catch-event", WorkflowInstanceIntent.ELEMENT_ACTIVATED);
 
     // when
-    final WorkflowInstanceSubscriptionRecord subscription = subscriptionRecordForEvent(catchEvent);
+    final WorkflowInstanceSubscriptionRecord subscription =
+        subscriptionRecordForEvent(catchEvent, "order canceled");
 
     envRule.writeCommand(WorkflowInstanceSubscriptionIntent.OPEN, subscription);
 
@@ -398,7 +414,8 @@ public class WorkflowInstanceStreamProcessorTest {
         streamProcessorRule.awaitElementInState(
             "catch-event", WorkflowInstanceIntent.ELEMENT_ACTIVATED);
 
-    final WorkflowInstanceSubscriptionRecord subscription = subscriptionRecordForEvent(catchEvent);
+    final WorkflowInstanceSubscriptionRecord subscription =
+        subscriptionRecordForEvent(catchEvent, "order canceled");
 
     streamProcessor.blockAfterWorkflowInstanceSubscriptionEvent(
         e -> e.getMetadata().getIntent() == WorkflowInstanceSubscriptionIntent.OPENED);
@@ -545,6 +562,53 @@ public class WorkflowInstanceStreamProcessorTest {
         .isEqualTo("subscription is already closed");
   }
 
+  // todo(npepinpe): add test for correlation after ELEMENT_COMPLETING of task
+
+  @Test
+  public void shouldInterruptServiceTaskOnMessageCorrelation() {
+    // given
+    streamProcessorRule.deploy(INTERRUPTING_MESSAGE_BOUNDARY_WORKFLOW);
+    streamProcessorRule.createWorkflowInstance(PROCESS_ID, asMsgPack("id", "123"));
+
+    final TypedRecord<WorkflowInstanceRecord> taskActivatedEvent =
+        streamProcessorRule.awaitElementInState("task", WorkflowInstanceIntent.ELEMENT_ACTIVATED);
+
+    final WorkflowInstanceSubscriptionRecord subscription =
+        subscriptionRecordForEvent(taskActivatedEvent, "message");
+
+    streamProcessor.blockAfterWorkflowInstanceSubscriptionEvent(
+        e -> e.getMetadata().getIntent() == WorkflowInstanceSubscriptionIntent.OPENED);
+
+    envRule.writeCommand(WorkflowInstanceSubscriptionIntent.OPEN, subscription);
+
+    waitUntil(() -> streamProcessor.isBlocked());
+
+    // when
+    envRule.writeCommand(WorkflowInstanceSubscriptionIntent.CORRELATE, subscription);
+    streamProcessor.unblock();
+
+    envRule.printAllRecords();
+    // then
+    streamProcessorRule.awaitElementInState(PROCESS_ID, WorkflowInstanceIntent.ELEMENT_COMPLETED);
+
+    final List<TypedRecord<WorkflowInstanceRecord>> records =
+        envRule.events().onlyWorkflowInstanceRecords().collect(Collectors.toList());
+
+    final List<WorkflowInstanceIntent> taskLifecycle =
+        envRule.events().onlyStatesOf("task").collect(Collectors.toList());
+    LifecycleAssert.assertThat(taskLifecycle)
+        .compliesWithCompleteLifecycle()
+        .endsWith(WorkflowInstanceIntent.ELEMENT_TERMINATED);
+
+    final List<WorkflowInstanceIntent> boundaryLifecycle =
+        envRule.events().onlyStatesOf("boundary").collect(Collectors.toList());
+    LifecycleAssert.assertThat(boundaryLifecycle)
+        .compliesWithCompleteLifecycle()
+        .endsWith(WorkflowInstanceIntent.ELEMENT_COMPLETED);
+
+    WorkflowInstanceAssert.assertThat(records).doesNotEvaluateFlowAfterTerminatingElement("task");
+  }
+
   private Predicate<TypedRecord<WorkflowInstanceRecord>> isForElement(final String elementId) {
     return r -> BufferUtil.wrapString(elementId).equals(r.getValue().getActivityId());
   }
@@ -555,11 +619,11 @@ public class WorkflowInstanceStreamProcessorTest {
   }
 
   private WorkflowInstanceSubscriptionRecord subscriptionRecordForEvent(
-      final TypedRecord<WorkflowInstanceRecord> catchEvent) {
+      final TypedRecord<WorkflowInstanceRecord> catchEvent, String messageName) {
     return new WorkflowInstanceSubscriptionRecord()
         .setSubscriptionPartitionId(0)
         .setWorkflowInstanceKey(catchEvent.getValue().getWorkflowInstanceKey())
         .setActivityInstanceKey(catchEvent.getKey())
-        .setMessageName(wrapString("order canceled"));
+        .setMessageName(wrapString(messageName));
   }
 }

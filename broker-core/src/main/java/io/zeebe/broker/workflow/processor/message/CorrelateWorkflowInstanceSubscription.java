@@ -19,7 +19,6 @@ package io.zeebe.broker.workflow.processor.message;
 
 import io.zeebe.broker.clustering.base.topology.TopologyManager;
 import io.zeebe.broker.logstreams.processor.SideEffectProducer;
-import io.zeebe.broker.logstreams.processor.TypedBatchWriter;
 import io.zeebe.broker.logstreams.processor.TypedRecord;
 import io.zeebe.broker.logstreams.processor.TypedRecordProcessor;
 import io.zeebe.broker.logstreams.processor.TypedResponseWriter;
@@ -27,9 +26,12 @@ import io.zeebe.broker.logstreams.processor.TypedStreamProcessor;
 import io.zeebe.broker.logstreams.processor.TypedStreamWriter;
 import io.zeebe.broker.subscription.command.SubscriptionCommandSender;
 import io.zeebe.broker.subscription.message.data.WorkflowInstanceSubscriptionRecord;
+import io.zeebe.broker.workflow.processor.EventOutput;
 import io.zeebe.broker.workflow.state.DeployedWorkflow;
 import io.zeebe.broker.workflow.state.ElementInstance;
+import io.zeebe.broker.workflow.state.WorkflowEngineState;
 import io.zeebe.broker.workflow.state.WorkflowState;
+import io.zeebe.broker.workflow.state.WorkflowSubscription;
 import io.zeebe.logstreams.log.LogStream;
 import io.zeebe.protocol.clientapi.RejectionType;
 import io.zeebe.protocol.impl.record.value.workflowinstance.WorkflowInstanceRecord;
@@ -38,6 +40,7 @@ import io.zeebe.protocol.intent.WorkflowInstanceSubscriptionIntent;
 import io.zeebe.util.sched.ActorControl;
 import java.time.Duration;
 import java.util.function.Consumer;
+import org.agrona.DirectBuffer;
 
 public final class CorrelateWorkflowInstanceSubscription
     implements TypedRecordProcessor<WorkflowInstanceSubscriptionRecord> {
@@ -46,8 +49,9 @@ public final class CorrelateWorkflowInstanceSubscription
   public static final Duration SUBSCRIPTION_CHECK_INTERVAL = Duration.ofSeconds(30);
 
   private final TopologyManager topologyManager;
-  private final WorkflowState workflowState;
+  private final WorkflowEngineState engineState;
   private final SubscriptionCommandSender subscriptionCommandSender;
+  private final EventOutput eventOutput;
 
   private TypedRecord<WorkflowInstanceSubscriptionRecord> record;
   private WorkflowInstanceSubscriptionRecord subscription;
@@ -56,10 +60,11 @@ public final class CorrelateWorkflowInstanceSubscription
 
   public CorrelateWorkflowInstanceSubscription(
       TopologyManager topologyManager,
-      WorkflowState workflowState,
+      WorkflowEngineState engineState,
       SubscriptionCommandSender subscriptionCommandSender) {
     this.topologyManager = topologyManager;
-    this.workflowState = workflowState;
+    this.engineState = engineState;
+    this.eventOutput = new EventOutput(engineState);
     this.subscriptionCommandSender = subscriptionCommandSender;
   }
 
@@ -72,7 +77,9 @@ public final class CorrelateWorkflowInstanceSubscription
 
     final PendingWorkflowInstanceSubscriptionChecker pendingSubscriptionChecker =
         new PendingWorkflowInstanceSubscriptionChecker(
-            subscriptionCommandSender, workflowState, SUBSCRIPTION_TIMEOUT.toMillis());
+            subscriptionCommandSender,
+            engineState.getWorkflowState(),
+            SUBSCRIPTION_TIMEOUT.toMillis());
     actor.runAtFixedRate(SUBSCRIPTION_CHECK_INTERVAL, pendingSubscriptionChecker);
   }
 
@@ -92,7 +99,7 @@ public final class CorrelateWorkflowInstanceSubscription
     this.sideEffect = sideEffect;
 
     final ElementInstance eventInstance =
-        workflowState.getElementInstanceState().getInstance(subscription.getActivityInstanceKey());
+        engineState.getElementInstanceState().getInstance(subscription.getActivityInstanceKey());
 
     if (eventInstance == null) {
       streamWriter.writeRejection(
@@ -100,9 +107,10 @@ public final class CorrelateWorkflowInstanceSubscription
 
     } else {
       final long workflowKey = eventInstance.getValue().getWorkflowKey();
-      final DeployedWorkflow workflow = workflowState.getWorkflowByKey(workflowKey);
+      final DeployedWorkflow workflow =
+          engineState.getWorkflowState().getWorkflowByKey(workflowKey);
       if (workflow != null) {
-        onWorkflowAvailable();
+        onWorkflowAvailable(workflow);
       } else {
         streamWriter.writeRejection(
             record, RejectionType.NOT_APPLICABLE, "workflow is not available");
@@ -110,33 +118,57 @@ public final class CorrelateWorkflowInstanceSubscription
     }
   }
 
-  private void onWorkflowAvailable() {
+  private void onWorkflowAvailable(final DeployedWorkflow deployedWorkflow) {
     // remove subscription if pending
-    final boolean removed = workflowState.remove(subscription);
-    if (!removed) {
+    final WorkflowState state = engineState.getWorkflowState();
+    final WorkflowSubscription subscriptionState = state.findSubscription(subscription);
+    if (subscriptionState == null) {
       streamWriter.writeRejection(
           record, RejectionType.NOT_APPLICABLE, "subscription is already correlated");
 
       sideEffect.accept(this::sendAcknowledgeCommand);
       return;
     }
+    state.remove(subscriptionState);
 
     final ElementInstance eventInstance =
-        workflowState.getElementInstanceState().getInstance(subscription.getActivityInstanceKey());
+        engineState.getElementInstanceState().getInstance(subscription.getActivityInstanceKey());
+
+    eventOutput.setStreamWriter(streamWriter);
+    eventOutput.newBatch();
+    eventOutput
+        .getBatchWriter()
+        .addFollowUpEvent(
+            record.getKey(), WorkflowInstanceSubscriptionIntent.CORRELATED, subscription);
 
     final WorkflowInstanceRecord value = eventInstance.getValue();
-    value.setPayload(subscription.getPayload());
+    final DirectBuffer handlerActivityId = subscriptionState.getHandlerActivityId();
 
-    final TypedBatchWriter batchWriter = streamWriter.newBatch();
-    batchWriter.addFollowUpEvent(
-        record.getKey(), WorkflowInstanceSubscriptionIntent.CORRELATED, subscription);
-    batchWriter.addFollowUpEvent(
-        subscription.getActivityInstanceKey(), WorkflowInstanceIntent.ELEMENT_COMPLETING, value);
+    if (handlerActivityId.capacity() == 0 || value.getActivityId().equals(handlerActivityId)) {
+      value.setPayload(subscription.getPayload());
+      eventOutput.writeFollowUpEvent(
+          eventInstance.getKey(), WorkflowInstanceIntent.ELEMENT_COMPLETING, value);
+    } else {
+      final WorkflowInstanceRecord newValue = new WorkflowInstanceRecord();
+
+      newValue.setActivityId(handlerActivityId);
+      newValue.setBpmnProcessId(value.getBpmnProcessId());
+      newValue.setPayload(subscription.getPayload());
+      newValue.setScopeInstanceKey(value.getScopeInstanceKey());
+      newValue.setVersion(value.getVersion());
+      newValue.setWorkflowInstanceKey(value.getWorkflowInstanceKey());
+      newValue.setWorkflowKey(value.getWorkflowKey());
+
+      final long handlerKey =
+          eventOutput.writeNewEvent(WorkflowInstanceIntent.ELEMENT_READY, newValue);
+
+      engineState
+          .getElementInstanceState()
+          .getInstance(handlerKey)
+          .setAttachedToKey(eventInstance.getKey());
+    }
 
     sideEffect.accept(this::sendAcknowledgeCommand);
-
-    eventInstance.setState(WorkflowInstanceIntent.ELEMENT_COMPLETING);
-    eventInstance.setValue(value);
   }
 
   private boolean sendAcknowledgeCommand() {

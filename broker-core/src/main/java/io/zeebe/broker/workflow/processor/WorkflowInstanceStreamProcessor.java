@@ -32,7 +32,6 @@ import io.zeebe.broker.workflow.processor.deployment.DeploymentCreateProcessor;
 import io.zeebe.broker.workflow.processor.deployment.TransformingDeploymentCreateProcessor;
 import io.zeebe.broker.workflow.processor.job.JobCompletedEventProcessor;
 import io.zeebe.broker.workflow.processor.job.JobCreatedProcessor;
-import io.zeebe.broker.workflow.processor.message.CloseWorkflowInstanceSubscription;
 import io.zeebe.broker.workflow.processor.message.CorrelateWorkflowInstanceSubscription;
 import io.zeebe.broker.workflow.processor.message.OpenWorkflowInstanceSubscriptionProcessor;
 import io.zeebe.broker.workflow.processor.timer.CancelTimerProcessor;
@@ -104,7 +103,7 @@ public class WorkflowInstanceStreamProcessor implements StreamProcessorLifecycle
     addWorkflowInstanceCommandProcessor(streamProcessorBuilder, engineState, keyGenerator);
     addBpmnStepProcessor(streamProcessorBuilder, engineState);
     addJobStreamProcessors(streamProcessorBuilder);
-    addMessageStreamProcessors(streamProcessorBuilder);
+    addMessageStreamProcessors(streamProcessorBuilder, engineState);
     addTimerStreamProcessors(streamProcessorBuilder);
     addDeploymentStreamProcessors(streamProcessorBuilder, partitionId);
 
@@ -193,7 +192,8 @@ public class WorkflowInstanceStreamProcessor implements StreamProcessorLifecycle
   }
 
   private void addMessageStreamProcessors(
-      final TypedEventStreamProcessorBuilder streamProcessorBuilder) {
+      final TypedEventStreamProcessorBuilder streamProcessorBuilder,
+      final WorkflowEngineState engineState) {
     streamProcessorBuilder
         .onCommand(
             ValueType.WORKFLOW_INSTANCE_SUBSCRIPTION,
@@ -203,11 +203,7 @@ public class WorkflowInstanceStreamProcessor implements StreamProcessorLifecycle
             ValueType.WORKFLOW_INSTANCE_SUBSCRIPTION,
             WorkflowInstanceSubscriptionIntent.CORRELATE,
             new CorrelateWorkflowInstanceSubscription(
-                topologyManager, workflowState, subscriptionCommandSender))
-        .onCommand(
-            ValueType.WORKFLOW_INSTANCE_SUBSCRIPTION,
-            WorkflowInstanceSubscriptionIntent.CLOSE,
-            new CloseWorkflowInstanceSubscription(workflowState));
+                topologyManager, engineState, subscriptionCommandSender));
   }
 
   private void addTimerStreamProcessors(

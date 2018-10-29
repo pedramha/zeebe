@@ -79,6 +79,7 @@ public class BpmnStepProcessor implements TypedRecordProcessor<WorkflowInstanceR
 
     populateEventContext(record, streamWriter, sideEffect);
 
+    // todo(npepinpe): add guard to prevent boundary event activation if attached is in final state
     if (stepGuards.shouldHandle(context)) {
       state.onEventConsumed(record);
       stepHandlers.handle(context);

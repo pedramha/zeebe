@@ -34,6 +34,7 @@ public class WorkflowSubscription implements Subscription {
 
   private final DirectBuffer messageName = new UnsafeBuffer();
   private final DirectBuffer correlationKey = new UnsafeBuffer();
+  private final DirectBuffer handlerActivityId = new UnsafeBuffer();
 
   private long workflowInstanceKey;
   private long activityInstanceKey;
@@ -99,6 +100,14 @@ public class WorkflowSubscription implements Subscription {
     return commandSentTime;
   }
 
+  public DirectBuffer getHandlerActivityId() {
+    return handlerActivityId;
+  }
+
+  public void setHandlerActivityId(final DirectBuffer handlerActivityId) {
+    this.handlerActivityId.wrap(handlerActivityId);
+  }
+
   @Override
   public void setCommandSentTime(long commandSentTime) {
     this.commandSentTime = commandSentTime;
@@ -146,12 +155,17 @@ public class WorkflowSubscription implements Subscription {
     offset += Integer.BYTES;
 
     offset = readIntoBuffer(buffer, offset, messageName);
-    readIntoBuffer(buffer, offset, correlationKey);
+    offset = readIntoBuffer(buffer, offset, correlationKey);
+    readIntoBuffer(buffer, offset, handlerActivityId);
   }
 
   @Override
   public int getLength() {
-    return Long.BYTES * 3 + Integer.BYTES * 4 + messageName.capacity() + correlationKey.capacity();
+    return Long.BYTES * 3
+        + Integer.BYTES * 5
+        + messageName.capacity()
+        + correlationKey.capacity()
+        + handlerActivityId.capacity();
   }
 
   @Override
@@ -173,7 +187,9 @@ public class WorkflowSubscription implements Subscription {
 
     offset = writeIntoBuffer(buffer, offset, messageName);
     offset = writeIntoBuffer(buffer, offset, correlationKey);
-    assert offset == getLength() : "End offset differs with getLength()";
+    offset = writeIntoBuffer(buffer, offset, handlerActivityId);
+    assert offset == getLength()
+        : "End offset differs with getLength() (" + offset + " != " + getLength() + ")";
   }
 
   @Override
