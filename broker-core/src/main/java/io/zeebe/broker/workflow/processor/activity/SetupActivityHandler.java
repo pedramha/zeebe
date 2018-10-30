@@ -17,25 +17,25 @@
  */
 package io.zeebe.broker.workflow.processor.activity;
 
-import io.zeebe.broker.workflow.model.element.ExecutableFlowNode;
+import io.zeebe.broker.workflow.model.element.ExecutableActivity;
+import io.zeebe.broker.workflow.model.element.ExecutableBoundaryEvent;
 import io.zeebe.broker.workflow.processor.BpmnStepContext;
-import io.zeebe.broker.workflow.processor.BpmnStepHandler;
+import io.zeebe.broker.workflow.processor.flownode.ActivateFlowNodeHandler;
 import io.zeebe.broker.workflow.state.ElementInstance;
-import io.zeebe.protocol.intent.WorkflowInstanceIntent;
+import java.util.List;
 
-public class PropagateTerminationHandler implements BpmnStepHandler<ExecutableFlowNode> {
-
+public class SetupActivityHandler extends ActivateFlowNodeHandler<ExecutableActivity> {
   @Override
-  public void handle(BpmnStepContext<ExecutableFlowNode> context) {
-    final ElementInstance flowScopeInstance = context.getFlowScopeInstance();
+  protected void activate(BpmnStepContext<ExecutableActivity> context) {
+    final ElementInstance element = context.getElementInstance();
+    final List<ExecutableBoundaryEvent> boundaryEvents = context.getElement().getBoundaryEvents();
 
-    if (flowScopeInstance.getNumberOfActiveElementInstances() == 0) {
-      context
-          .getOutput()
-          .writeFollowUpEvent(
-              flowScopeInstance.getKey(),
-              WorkflowInstanceIntent.ELEMENT_TERMINATED,
-              flowScopeInstance.getValue());
+    for (final ExecutableBoundaryEvent boundaryEvent : boundaryEvents) {
+      if (boundaryEvent.isTimerEvent()) {
+        context
+            .getCatchEventOutput()
+            .subscribeToTimerEvent(element, boundaryEvent, context.getOutput().getBatchWriter());
+      }
     }
   }
 }

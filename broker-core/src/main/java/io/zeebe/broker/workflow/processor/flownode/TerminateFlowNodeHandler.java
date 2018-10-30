@@ -15,10 +15,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package io.zeebe.broker.workflow.processor;
+package io.zeebe.broker.workflow.processor.flownode;
 
 import io.zeebe.broker.workflow.model.element.ExecutableFlowElement;
+import io.zeebe.broker.workflow.processor.BpmnStepContext;
+import io.zeebe.broker.workflow.processor.BpmnStepHandler;
+import io.zeebe.protocol.intent.WorkflowInstanceIntent;
 
-public interface BpmnStepHandler<T extends ExecutableFlowElement> {
-  void handle(BpmnStepContext<T> context);
+public class TerminateFlowNodeHandler<T extends ExecutableFlowElement>
+    implements BpmnStepHandler<T> {
+  @Override
+  public void handle(BpmnStepContext<T> context) {
+    terminate(context);
+
+    context
+        .getOutput()
+        .writeFollowUpEvent(
+            context.getRecord().getKey(),
+            WorkflowInstanceIntent.ELEMENT_TERMINATED,
+            context.getValue());
+  }
+
+  /**
+   * To be overridden by subclasses
+   *
+   * @param context current processor context
+   */
+  protected void terminate(BpmnStepContext<T> context) {}
 }

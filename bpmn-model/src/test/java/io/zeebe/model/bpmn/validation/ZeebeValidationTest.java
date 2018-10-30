@@ -153,6 +153,61 @@ public class ZeebeValidationTest extends AbstractZeebeValidationTest {
             .done(),
         Arrays.asList(expect("boundary", "Cannot have incoming sequence flows"))
       },
+      {
+        Bpmn.createExecutableProcess("process")
+            .startEvent("start")
+            .serviceTask("task", b -> b.zeebeTaskType("type"))
+            .boundaryEvent("boundary")
+            .message(b -> b.name("message").zeebeCorrelationKey("$.id"))
+            .endEvent("end")
+            .done(),
+        Arrays.asList(expect("boundary", "Event definition must be one of: timer"))
+      },
+      {
+        Bpmn.createExecutableProcess("process")
+            .startEvent("start")
+            .serviceTask("task", b -> b.zeebeTaskType("type"))
+            .boundaryEvent("boundary")
+            .endEvent("end")
+            .done(),
+        Arrays.asList(expect("boundary", "Must have exactly one event definition"))
+      },
+      {
+        Bpmn.createExecutableProcess("process")
+            .startEvent("start")
+            .serviceTask("task", b -> b.zeebeTaskType("type"))
+            .boundaryEvent("boundary")
+            .timerWithDuration("PT0.5S")
+            .timerWithDuration("PT0.5S")
+            .endEvent("end")
+            .done(),
+        Arrays.asList(expect("boundary", "Must have exactly one event definition"))
+      },
+      {
+        Bpmn.createExecutableProcess("process")
+            .startEvent("start")
+            .serviceTask("task", b -> b.zeebeTaskType("type"))
+            .boundaryEvent("boundary")
+            .timerWithDuration("PT0.5S")
+            .moveToActivity("task")
+            .endEvent("end")
+            .done(),
+        Arrays.asList(expect("boundary", "Must have at least one outgoing sequence flow"))
+      },
+      {
+        Bpmn.createExecutableProcess("process")
+            .startEvent("start")
+            .serviceTask("task1", b -> b.zeebeTaskType("type"))
+            .boundaryEvent("boundary")
+            .timerWithDuration("PT0.5S")
+            .moveToActivity("task1")
+            .serviceTask("task2", b -> b.zeebeTaskType("type"))
+            .sequenceFlowId("taskOut")
+            .connectTo("boundary")
+            .endEvent("end")
+            .done(),
+        Arrays.asList(expect("boundary", "Cannot have incoming sequence flows"))
+      },
     };
   }
 }
