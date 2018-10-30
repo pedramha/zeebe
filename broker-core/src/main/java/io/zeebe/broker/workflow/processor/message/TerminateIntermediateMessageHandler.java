@@ -19,13 +19,14 @@ package io.zeebe.broker.workflow.processor.message;
 
 import io.zeebe.broker.logstreams.processor.TypedBatchWriter;
 import io.zeebe.broker.subscription.command.SubscriptionCommandSender;
-import io.zeebe.broker.workflow.model.element.ExecutableFlowNode;
+import io.zeebe.broker.workflow.model.element.ExecutableIntermediateCatchElement;
 import io.zeebe.broker.workflow.processor.BpmnStepContext;
 import io.zeebe.broker.workflow.processor.flownode.TerminateElementHandler;
 import io.zeebe.broker.workflow.state.WorkflowState;
 import io.zeebe.broker.workflow.state.WorkflowSubscription;
 
-public class TerminateIntermediateMessageHandler extends TerminateElementHandler {
+public class TerminateIntermediateMessageHandler
+    extends TerminateElementHandler<ExecutableIntermediateCatchElement> {
 
   private final WorkflowState workflowState;
   private final SubscriptionCommandSender subscriptionCommandSender;
@@ -39,8 +40,8 @@ public class TerminateIntermediateMessageHandler extends TerminateElementHandler
   }
 
   @Override
-  protected void addTerminatingRecords(
-      BpmnStepContext<ExecutableFlowNode> context, TypedBatchWriter batch) {
+  protected void terminate(
+      BpmnStepContext<ExecutableIntermediateCatchElement> context, TypedBatchWriter batch) {
 
     final long elementInstanceKey = context.getElementInstance().getKey();
     final long workflowInstanceKey = context.getValue().getWorkflowInstanceKey();

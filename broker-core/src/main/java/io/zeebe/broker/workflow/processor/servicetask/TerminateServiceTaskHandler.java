@@ -18,7 +18,7 @@
 package io.zeebe.broker.workflow.processor.servicetask;
 
 import io.zeebe.broker.logstreams.processor.TypedBatchWriter;
-import io.zeebe.broker.workflow.model.element.ExecutableFlowNode;
+import io.zeebe.broker.workflow.model.element.ExecutableServiceTask;
 import io.zeebe.broker.workflow.processor.BpmnStepContext;
 import io.zeebe.broker.workflow.processor.flownode.TerminateElementHandler;
 import io.zeebe.broker.workflow.state.ElementInstance;
@@ -27,15 +27,14 @@ import io.zeebe.protocol.impl.record.value.workflowinstance.WorkflowInstanceReco
 import io.zeebe.protocol.intent.JobIntent;
 import org.agrona.concurrent.UnsafeBuffer;
 
-public class TerminateServiceTaskHandler extends TerminateElementHandler {
+public class TerminateServiceTaskHandler extends TerminateElementHandler<ExecutableServiceTask> {
 
   private static final UnsafeBuffer EMPTY_JOB_TYPE = new UnsafeBuffer("".getBytes());
 
   private final JobRecord jobRecord = new JobRecord();
 
   @Override
-  protected void addTerminatingRecords(
-      BpmnStepContext<ExecutableFlowNode> context, TypedBatchWriter batch) {
+  protected void terminate(BpmnStepContext<ExecutableServiceTask> context, TypedBatchWriter batch) {
 
     final ElementInstance activityInstance = context.getElementInstance();
 

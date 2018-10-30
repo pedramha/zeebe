@@ -15,60 +15,56 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package io.zeebe.broker.workflow.processor.activity;
+package io.zeebe.broker.workflow.processor.boundary;
 
 import io.zeebe.broker.subscription.command.SubscriptionCommandSender;
 import io.zeebe.broker.workflow.model.element.ExecutableActivityElement;
 import io.zeebe.broker.workflow.model.element.ExecutableBoundaryEventElement;
 import io.zeebe.broker.workflow.processor.BpmnStepContext;
 import io.zeebe.broker.workflow.processor.SideEffectQueue;
-import io.zeebe.broker.workflow.processor.flownode.ActivateElementHandler;
 import io.zeebe.broker.workflow.processor.message.WorkflowSubscriber;
 import io.zeebe.broker.workflow.state.WorkflowState;
 import io.zeebe.broker.workflow.state.WorkflowSubscription;
-import java.util.ArrayList;
 import java.util.List;
 
-public class SetupActivityHandler extends ActivateElementHandler<ExecutableActivityElement> {
-  private final SideEffectQueue sideEffectQueue = new SideEffectQueue();
+public class BoundaryEventCleaner {
   private final WorkflowSubscriber subscriber;
   private final WorkflowState workflowState;
 
-  public SetupActivityHandler(
-      SubscriptionCommandSender subscriptionCommandSender, WorkflowState workflowState) {
-    this.subscriber = new WorkflowSubscriber(subscriptionCommandSender);
+  public BoundaryEventCleaner(
+      SubscriptionCommandSender commandSender, WorkflowState workflowState) {
+    this.subscriber = new WorkflowSubscriber(commandSender);
     this.workflowState = workflowState;
   }
 
-  @Override
-  protected void activateElement(BpmnStepContext<ExecutableActivityElement> context) {
-    super.activateElement(context);
-    subscribeToBoundaryEvents(context);
-    context.getSideEffect().accept(sideEffectQueue);
-  }
-
-  private void subscribeToBoundaryEvents(BpmnStepContext<ExecutableActivityElement> context) {
+  public void clean(
+      BpmnStepContext<ExecutableActivityElement> context, SideEffectQueue sideEffectQueue) {
     final List<ExecutableBoundaryEventElement> boundaryEvents =
         context.getElement().getBoundaryEvents();
-    final List<WorkflowSubscription> messageSubscriptions = new ArrayList<>();
 
     for (final ExecutableBoundaryEventElement boundaryEvent : boundaryEvents) {
       if (boundaryEvent.getMessage() != null) {
-        messageSubscriptions.add(
-            subscriber.createSubscription(
-                context.getValue(),
-                context.getRecord().getKey(),
-                boundaryEvent.getMessage(),
-                boundaryEvent.getId()));
+        unsubscribeFromMessage(context, sideEffectQueue, boundaryEvent);
       } else {
         throw new RuntimeException("Only message boundary events are supported");
       }
     }
+  }
 
-    // modify state once no exceptions might be triggered
-    for (final WorkflowSubscription subscription : messageSubscriptions) {
-      workflowState.put(subscription);
-      sideEffectQueue.add(() -> subscriber.openSubscription(subscription));
+  private void unsubscribeFromMessage(
+      BpmnStepContext<ExecutableActivityElement> context,
+      SideEffectQueue sideEffectQueue,
+      ExecutableBoundaryEventElement boundaryEvent) {
+    final WorkflowSubscription subscription =
+        workflowState.findSubscription(
+            context.getValue().getWorkflowInstanceKey(),
+            context.getRecord().getKey(),
+            boundaryEvent.getId());
+
+    if (subscription != null) {
+      subscription.setClosing();
+      workflowState.updateCommandSendTime(subscription);
+      sideEffectQueue.add(() -> subscriber.closeSubscription(subscription));
     }
   }
 }

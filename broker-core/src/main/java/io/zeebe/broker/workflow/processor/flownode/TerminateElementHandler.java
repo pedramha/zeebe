@@ -26,24 +26,22 @@ import io.zeebe.broker.workflow.processor.EventOutput;
 import io.zeebe.protocol.impl.record.value.workflowinstance.WorkflowInstanceRecord;
 import io.zeebe.protocol.intent.WorkflowInstanceIntent;
 
-public class TerminateElementHandler implements BpmnStepHandler<ExecutableFlowNode> {
+public class TerminateElementHandler<T extends ExecutableFlowNode> implements BpmnStepHandler<T> {
 
   @Override
-  public void handle(BpmnStepContext<ExecutableFlowNode> context) {
+  public void handle(BpmnStepContext<T> context) {
     final TypedRecord<WorkflowInstanceRecord> terminatingRecord = context.getRecord();
+    final EventOutput output = context.getOutput();
+    output.newBatch();
 
-    final EventOutput instanceWriter = context.getOutput();
-    instanceWriter.newBatch();
+    terminate(context, output.getBatchWriter());
 
-    addTerminatingRecords(context, instanceWriter.getBatchWriter());
-
-    instanceWriter.writeFollowUpEvent(
+    output.writeFollowUpEvent(
         terminatingRecord.getKey(),
         WorkflowInstanceIntent.ELEMENT_TERMINATED,
         terminatingRecord.getValue());
   }
 
   // to be overriden by subclasses
-  protected void addTerminatingRecords(
-      BpmnStepContext<ExecutableFlowNode> context, TypedBatchWriter batch) {}
+  protected void terminate(BpmnStepContext<T> context, TypedBatchWriter batch) {}
 }

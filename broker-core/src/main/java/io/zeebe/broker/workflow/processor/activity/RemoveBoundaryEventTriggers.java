@@ -17,28 +17,26 @@
  */
 package io.zeebe.broker.workflow.processor.activity;
 
-import io.zeebe.broker.logstreams.processor.TypedBatchWriter;
 import io.zeebe.broker.subscription.command.SubscriptionCommandSender;
 import io.zeebe.broker.workflow.model.element.ExecutableActivityElement;
 import io.zeebe.broker.workflow.processor.BpmnStepContext;
 import io.zeebe.broker.workflow.processor.SideEffectQueue;
 import io.zeebe.broker.workflow.processor.boundary.BoundaryEventCleaner;
-import io.zeebe.broker.workflow.processor.flownode.TerminateElementHandler;
+import io.zeebe.broker.workflow.processor.flownode.CompleteElementHandler;
 import io.zeebe.broker.workflow.state.WorkflowState;
 
-public class TerminateActivityHandler extends TerminateElementHandler<ExecutableActivityElement> {
+public class RemoveBoundaryEventTriggers extends CompleteElementHandler<ExecutableActivityElement> {
   private final SideEffectQueue sideEffectQueue = new SideEffectQueue();
   private final BoundaryEventCleaner boundaryEventCleaner;
 
-  public TerminateActivityHandler(
+  public RemoveBoundaryEventTriggers(
       SubscriptionCommandSender subscriptionCommandSender, WorkflowState workflowState) {
     this.boundaryEventCleaner = new BoundaryEventCleaner(subscriptionCommandSender, workflowState);
   }
 
   @Override
-  protected void terminate(
-      BpmnStepContext<ExecutableActivityElement> context, TypedBatchWriter batch) {
-    super.terminate(context, batch);
+  protected void completeActivity(BpmnStepContext<ExecutableActivityElement> context) {
+    super.completeActivity(context);
     boundaryEventCleaner.clean(context, sideEffectQueue);
     context.getSideEffect().accept(sideEffectQueue);
   }

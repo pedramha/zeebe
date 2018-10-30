@@ -15,23 +15,29 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package io.zeebe.broker.workflow.model.element;
+package io.zeebe.broker.workflow.processor;
 
-import java.util.ArrayList;
-import java.util.List;
+import io.zeebe.broker.workflow.state.WorkflowState;
+import java.util.LinkedList;
+import java.util.Queue;
 
-public class ExecutableActivityElement extends ExecutableFlowNode {
-  private List<ExecutableBoundaryEventElement> boundaryEvents = new ArrayList<>();
+public class StateUpdateQueue {
+  private final Queue<StateUpdater> queue = new LinkedList<>();
 
-  public ExecutableActivityElement(String id) {
-    super(id);
+  public void add(StateUpdater stateUpdater) {
+    queue.add(stateUpdater);
   }
 
-  public List<ExecutableBoundaryEventElement> getBoundaryEvents() {
-    return boundaryEvents;
+  public void applyUpdates(WorkflowState state) {
+    StateUpdater stateUpdater;
+
+    while ((stateUpdater = queue.poll()) != null) {
+      stateUpdater.update(state);
+    }
   }
 
-  public void addBoundaryEvent(final ExecutableBoundaryEventElement boundaryEvent) {
-    boundaryEvents.add(boundaryEvent);
+  @FunctionalInterface
+  public interface StateUpdater {
+    void update(WorkflowState state);
   }
 }

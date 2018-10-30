@@ -19,9 +19,10 @@ package io.zeebe.broker.workflow.processor;
 
 import io.zeebe.broker.subscription.command.SubscriptionCommandSender;
 import io.zeebe.broker.workflow.model.BpmnStep;
+import io.zeebe.broker.workflow.model.element.ExecutableActivityElement;
 import io.zeebe.broker.workflow.model.element.ExecutableFlowElement;
-import io.zeebe.broker.workflow.processor.activity.CompleteActivityHandler;
 import io.zeebe.broker.workflow.processor.activity.PropagateTerminationHandler;
+import io.zeebe.broker.workflow.processor.activity.RemoveBoundaryEventTriggers;
 import io.zeebe.broker.workflow.processor.activity.SetupActivityHandler;
 import io.zeebe.broker.workflow.processor.activity.TerminateActivityHandler;
 import io.zeebe.broker.workflow.processor.boundary.ProcessBoundaryEventHandler;
@@ -68,11 +69,16 @@ public class BpmnStepHandlers {
     // activity
     stepHandlers.put(BpmnStep.CREATE_JOB, new CreateJobHandler());
     stepHandlers.put(
+        BpmnStep.COMPLETE_ACTIVITY,
+        new BpmnStepChain<ExecutableActivityElement>()
+            .andThen(new CompleteElementHandler())
+            .andThen(new RemoveBoundaryEventTriggers(subscriptionCommandSender, workflowState)));
+    stepHandlers.put(
         BpmnStep.SETUP_ACTIVITY,
         new SetupActivityHandler(subscriptionCommandSender, workflowState));
     stepHandlers.put(
-        BpmnStep.COMPLETE_ACTIVITY, new CompleteActivityHandler(subscriptionCommandSender));
-    stepHandlers.put(BpmnStep.TERMINATE_ACTIVITY, new TerminateActivityHandler());
+        BpmnStep.TERMINATE_ACTIVITY,
+        new TerminateActivityHandler(subscriptionCommandSender, workflowState));
 
     // boundary events
     stepHandlers.put(

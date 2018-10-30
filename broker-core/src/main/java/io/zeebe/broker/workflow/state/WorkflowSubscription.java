@@ -52,6 +52,12 @@ public class WorkflowSubscription implements Subscription {
   }
 
   public WorkflowSubscription(
+      long workflowInstanceKey, long activityInstanceKey, DirectBuffer handlerActivityId) {
+    this(workflowInstanceKey, activityInstanceKey);
+    this.setHandlerActivityId(handlerActivityId);
+  }
+
+  public WorkflowSubscription(
       long workflowInstanceKey,
       long activityInstanceKey,
       DirectBuffer messageName,
@@ -199,7 +205,7 @@ public class WorkflowSubscription implements Subscription {
 
   @Override
   public int getKeyLength() {
-    return 2 * Long.BYTES;
+    return 2 * Long.BYTES + Integer.BYTES + handlerActivityId.capacity();
   }
 
   @Override
@@ -209,6 +215,7 @@ public class WorkflowSubscription implements Subscription {
     offset += Long.BYTES;
     keyBuffer.putLong(offset, activityInstanceKey, STATE_BYTE_ORDER);
     offset += Long.BYTES;
+    offset = writeIntoBuffer(keyBuffer, offset, handlerActivityId);
 
     assert (offset - startOffset) == getKeyLength()
         : "Offset problem: offset is not equal to expected key length";

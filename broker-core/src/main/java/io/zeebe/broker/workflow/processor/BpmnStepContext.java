@@ -19,7 +19,6 @@ package io.zeebe.broker.workflow.processor;
 
 import io.zeebe.broker.incident.data.ErrorType;
 import io.zeebe.broker.incident.data.IncidentRecord;
-import io.zeebe.broker.logstreams.processor.SideEffectProducer;
 import io.zeebe.broker.logstreams.processor.TypedCommandWriter;
 import io.zeebe.broker.logstreams.processor.TypedRecord;
 import io.zeebe.broker.logstreams.processor.TypedStreamWriter;
@@ -31,26 +30,39 @@ import io.zeebe.msgpack.mapping.MsgPackMergeTool;
 import io.zeebe.protocol.impl.record.value.workflowinstance.WorkflowInstanceRecord;
 import io.zeebe.protocol.intent.IncidentIntent;
 import io.zeebe.protocol.intent.WorkflowInstanceIntent;
-import java.util.function.Consumer;
 
 public class BpmnStepContext<T extends ExecutableFlowElement> {
+  private final EventOutput eventOutput;
+  private final SideEffectQueue sideEffectQueue = new SideEffectQueue();
+  private final IncidentRecord incidentCommand = new IncidentRecord();
+  private final MsgPackMergeTool mergeTool;
 
   private TypedRecord<WorkflowInstanceRecord> record;
   private ExecutableWorkflow workflow;
   private ExecutableFlowElement element;
   private TypedCommandWriter commandWriter;
-  private final EventOutput eventOutput;
-  private Consumer<SideEffectProducer> sideEffect;
 
   private ElementInstance flowScopeInstance;
   private ElementInstance elementInstance;
-
-  private final IncidentRecord incidentCommand = new IncidentRecord();
-  private final MsgPackMergeTool mergeTool;
+  private boolean incidentRaised;
 
   public BpmnStepContext(EventOutput eventOutput) {
     this.eventOutput = eventOutput;
     this.mergeTool = new MsgPackMergeTool(4096);
+  }
+
+  public void reset() {
+    record = null;
+    workflow = null;
+    element = null;
+    commandWriter = null;
+    flowScopeInstance = null;
+    elementInstance = null;
+    incidentRaised = false;
+  }
+
+  public boolean wasIncidentRaised() {
+    return incidentRaised;
   }
 
   public TypedRecord<WorkflowInstanceRecord> getRecord() {
@@ -119,12 +131,8 @@ public class BpmnStepContext<T extends ExecutableFlowElement> {
     this.elementInstance = elementInstance;
   }
 
-  public void setSideEffect(Consumer<SideEffectProducer> sideEffect) {
-    this.sideEffect = sideEffect;
-  }
-
-  public Consumer<SideEffectProducer> getSideEffect() {
-    return sideEffect;
+  public SideEffectQueue getSideEffect() {
+    return sideEffectQueue;
   }
 
   public MsgPackMergeTool getMergeTool() {

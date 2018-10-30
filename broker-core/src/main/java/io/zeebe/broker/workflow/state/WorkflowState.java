@@ -124,6 +124,13 @@ public class WorkflowState extends KeyStateController {
     return subscriptionState.getSubscription(workflowSubscription);
   }
 
+  public WorkflowSubscription findSubscription(
+      long workflowInstanceKey, long activityInstanceKey, DirectBuffer handlerActivityId) {
+    final WorkflowSubscription workflowSubscription =
+        new WorkflowSubscription(workflowInstanceKey, activityInstanceKey, handlerActivityId);
+    return subscriptionState.getSubscription(workflowSubscription);
+  }
+
   public List<WorkflowSubscription> findSubscriptionsBefore(long time) {
     return subscriptionState.findSubscriptionBefore(time);
   }

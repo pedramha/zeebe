@@ -19,7 +19,7 @@ package io.zeebe.broker.workflow.processor.timer;
 
 import io.zeebe.broker.logstreams.processor.TypedBatchWriter;
 import io.zeebe.broker.workflow.data.TimerRecord;
-import io.zeebe.broker.workflow.model.element.ExecutableFlowNode;
+import io.zeebe.broker.workflow.model.element.ExecutableIntermediateCatchElement;
 import io.zeebe.broker.workflow.processor.BpmnStepContext;
 import io.zeebe.broker.workflow.processor.flownode.TerminateElementHandler;
 import io.zeebe.broker.workflow.state.ElementInstance;
@@ -27,7 +27,8 @@ import io.zeebe.broker.workflow.state.TimerInstance;
 import io.zeebe.broker.workflow.state.WorkflowState;
 import io.zeebe.protocol.intent.TimerIntent;
 
-public class TerminateTimerHandler extends TerminateElementHandler {
+public class TerminateTimerHandler
+    extends TerminateElementHandler<ExecutableIntermediateCatchElement> {
 
   private final WorkflowState workflowState;
 
@@ -38,8 +39,8 @@ public class TerminateTimerHandler extends TerminateElementHandler {
   }
 
   @Override
-  protected void addTerminatingRecords(
-      BpmnStepContext<ExecutableFlowNode> context, TypedBatchWriter batch) {
+  protected void terminate(
+      BpmnStepContext<ExecutableIntermediateCatchElement> context, TypedBatchWriter batch) {
 
     final ElementInstance activityInstance = context.getElementInstance();
 

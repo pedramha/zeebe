@@ -461,7 +461,8 @@ public class WorkflowInstanceStreamProcessorTest {
         streamProcessorRule.awaitElementInState(
             "catch-event", WorkflowInstanceIntent.ELEMENT_ACTIVATED);
 
-    final WorkflowInstanceSubscriptionRecord subscription = subscriptionRecordForEvent(catchEvent);
+    final WorkflowInstanceSubscriptionRecord subscription =
+        subscriptionRecordForEvent(catchEvent, "order canceled");
 
     streamProcessor.blockAfterWorkflowInstanceSubscriptionEvent(
         e -> e.getMetadata().getIntent() == WorkflowInstanceSubscriptionIntent.OPENED);
@@ -504,7 +505,8 @@ public class WorkflowInstanceStreamProcessorTest {
         streamProcessorRule.awaitElementInState(
             "catch-event", WorkflowInstanceIntent.ELEMENT_ACTIVATED);
 
-    final WorkflowInstanceSubscriptionRecord subscription = subscriptionRecordForEvent(catchEvent);
+    final WorkflowInstanceSubscriptionRecord subscription =
+        subscriptionRecordForEvent(catchEvent, "order canceled");
 
     envRule.writeCommand(
         createdEvent.getKey(), WorkflowInstanceIntent.CANCEL, catchEvent.getValue());
@@ -535,7 +537,8 @@ public class WorkflowInstanceStreamProcessorTest {
         streamProcessorRule.awaitElementInState(
             "catch-event", WorkflowInstanceIntent.ELEMENT_ACTIVATED);
 
-    final WorkflowInstanceSubscriptionRecord subscription = subscriptionRecordForEvent(catchEvent);
+    final WorkflowInstanceSubscriptionRecord subscription =
+        subscriptionRecordForEvent(catchEvent, "order canceled");
 
     streamProcessor.blockAfterWorkflowInstanceSubscriptionEvent(
         e -> e.getMetadata().getIntent() == WorkflowInstanceSubscriptionIntent.OPENED);
