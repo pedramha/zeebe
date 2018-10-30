@@ -69,7 +69,7 @@ public class ZeebeValidationTest extends AbstractZeebeValidationTest {
         Arrays.asList(
             expect(
                 CompensateEventDefinition.class, "Event definition of this type is not supported"),
-            expect(IntermediateCatchEvent.class, "Must have a message or timer event definition"))
+            expect(IntermediateCatchEvent.class, "Event definition must be one of: message, timer"))
       },
       {
         "no-start-event-sub-process.bpmn",
@@ -97,6 +97,61 @@ public class ZeebeValidationTest extends AbstractZeebeValidationTest {
             .done(),
         singletonList(
             expect("flow", "Must only have payload mappings if its target is a parallel gateway"))
+      },
+      {
+        Bpmn.createExecutableProcess("process")
+            .startEvent("start")
+            .serviceTask("task", b -> b.zeebeTaskType("type"))
+            .boundaryEvent("boundary")
+            .message(b -> b.name("message").zeebeCorrelationKey("$.id"))
+            .endEvent("end")
+            .done(),
+        Arrays.asList(expect("boundary", "Event definition must be one of: timer"))
+      },
+      {
+        Bpmn.createExecutableProcess("process")
+            .startEvent("start")
+            .serviceTask("task", b -> b.zeebeTaskType("type"))
+            .boundaryEvent("boundary")
+            .endEvent("end")
+            .done(),
+        Arrays.asList(expect("boundary", "Must have exactly one event definition"))
+      },
+      {
+        Bpmn.createExecutableProcess("process")
+            .startEvent("start")
+            .serviceTask("task", b -> b.zeebeTaskType("type"))
+            .boundaryEvent("boundary")
+            .timerWithDuration("PT0.5S")
+            .timerWithDuration("PT0.5S")
+            .endEvent("end")
+            .done(),
+        Arrays.asList(expect("boundary", "Must have exactly one event definition"))
+      },
+      {
+        Bpmn.createExecutableProcess("process")
+            .startEvent("start")
+            .serviceTask("task", b -> b.zeebeTaskType("type"))
+            .boundaryEvent("boundary")
+            .timerWithDuration("PT0.5S")
+            .moveToActivity("task")
+            .endEvent("end")
+            .done(),
+        Arrays.asList(expect("boundary", "Must have at least one outgoing sequence flow"))
+      },
+      {
+        Bpmn.createExecutableProcess("process")
+            .startEvent("start")
+            .serviceTask("task1", b -> b.zeebeTaskType("type"))
+            .boundaryEvent("boundary")
+            .timerWithDuration("PT0.5S")
+            .moveToActivity("task1")
+            .serviceTask("task2", b -> b.zeebeTaskType("type"))
+            .sequenceFlowId("taskOut")
+            .connectTo("boundary")
+            .endEvent("end")
+            .done(),
+        Arrays.asList(expect("boundary", "Cannot have incoming sequence flows"))
       },
     };
   }
