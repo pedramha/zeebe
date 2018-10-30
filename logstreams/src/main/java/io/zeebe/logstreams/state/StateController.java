@@ -114,8 +114,7 @@ public class StateController implements AutoCloseable {
     return RocksDB.open(options, dbDirectory.getAbsolutePath());
   }
 
-  protected RocksDB open(
-      final File dbDirectory, final boolean reopen, List<byte[]> columnFamilyNames)
+  public RocksDB open(final File dbDirectory, final boolean reopen, List<byte[]> columnFamilyNames)
       throws Exception {
     if (!isOpened) {
       try {
