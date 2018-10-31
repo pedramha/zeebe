@@ -65,10 +65,13 @@ public class JobStateController extends KeyStateController {
 
   private ZbRocksDb db;
 
+  public static List<byte[]> getColumnFamilyNames() {
+    return Stream.of(COLUMN_FAMILY_NAMES).collect(Collectors.toList());
+  }
+
   @Override
   public RocksDB open(final File dbDirectory, final boolean reopen) throws Exception {
-    final List<byte[]> columnFamilyNames =
-        Stream.of(COLUMN_FAMILY_NAMES).collect(Collectors.toList());
+    final List<byte[]> columnFamilyNames = getColumnFamilyNames();
 
     final RocksDB rocksDB = super.open(dbDirectory, reopen, columnFamilyNames);
     keyBuffer = new ExpandableArrayBuffer();

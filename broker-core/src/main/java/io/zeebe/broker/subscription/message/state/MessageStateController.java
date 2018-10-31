@@ -89,12 +89,15 @@ public class MessageStateController extends KeyStateController {
 
   private ZbRocksDb db;
 
+  public static List<byte[]> getColumnFamilyNames() {
+    return Stream.of(COLUMN_FAMILY_NAMES, SubscriptionState.COLUMN_FAMILY_NAMES)
+        .flatMap(Stream::of)
+        .collect(Collectors.toList());
+  }
+
   @Override
   public RocksDB open(final File dbDirectory, final boolean reopen) throws Exception {
-    final List<byte[]> columnFamilyNames =
-        Stream.of(COLUMN_FAMILY_NAMES, SubscriptionState.COLUMN_FAMILY_NAMES)
-            .flatMap(Stream::of)
-            .collect(Collectors.toList());
+    final List<byte[]> columnFamilyNames = getColumnFamilyNames();
 
     final RocksDB rocksDB = super.open(dbDirectory, reopen, columnFamilyNames);
 
@@ -118,8 +121,8 @@ public class MessageStateController extends KeyStateController {
   }
 
   public void put(final Message message) {
-    try (final WriteOptions options = new WriteOptions();
-        final ZbWriteBatch batch = new ZbWriteBatch()) {
+    try (WriteOptions options = new WriteOptions();
+        ZbWriteBatch batch = new ZbWriteBatch()) {
 
       message.write(valueBuffer, 0);
       batch.put(
@@ -296,8 +299,8 @@ public class MessageStateController extends KeyStateController {
       return;
     }
 
-    try (final WriteOptions options = new WriteOptions();
-        final ZbWriteBatch batch = new ZbWriteBatch()) {
+    try (WriteOptions options = new WriteOptions();
+        ZbWriteBatch batch = new ZbWriteBatch()) {
 
       batch.delete(defaultColumnFamily, key);
 

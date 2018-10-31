@@ -27,12 +27,7 @@ import org.rocksdb.RocksIterator;
 
 public class DeploymentsStateController extends KeyStateController {
 
-  public static final byte[] DEPLOYMENT_KEY_PREFIX = "deployment".getBytes();
 
-  private static final int DEPLOYMENT_KEY_OFFSET = DEPLOYMENT_KEY_PREFIX.length;
-  private static final int DEPLOYMENT_COMPLETE_KEY_LENGTH = DEPLOYMENT_KEY_OFFSET + Long.BYTES;
-
-  private final UnsafeBuffer deploymentKeyBuffer;
 
   private final PendingDeploymentDistribution pendingDeploymentDistribution;
   private final UnsafeBuffer buffer;
@@ -40,9 +35,6 @@ public class DeploymentsStateController extends KeyStateController {
   public DeploymentsStateController() {
     pendingDeploymentDistribution = new PendingDeploymentDistribution(new UnsafeBuffer(0, 0), -1);
     buffer = new UnsafeBuffer(0, 0);
-
-    deploymentKeyBuffer = new UnsafeBuffer(new byte[DEPLOYMENT_COMPLETE_KEY_LENGTH]);
-    deploymentKeyBuffer.putBytes(0, DEPLOYMENT_KEY_PREFIX);
   }
 
   public void putPendingDeployment(

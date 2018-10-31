@@ -1,25 +1,18 @@
-/*
- * Zeebe Broker Core
- * Copyright © 2017 camunda services GmbH (info@camunda.com)
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Affero General Public License for more details.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
-package io.zeebe.broker.workflow.state;
+package io.zeebe.broker.logstreams.state;
 
+import io.zeebe.broker.job.JobStateController;
 import io.zeebe.broker.subscription.message.data.WorkflowInstanceSubscriptionRecord;
+import io.zeebe.broker.subscription.message.state.MessageStateController;
 import io.zeebe.broker.subscription.message.state.SubscriptionState;
 import io.zeebe.broker.util.KeyStateController;
+import io.zeebe.broker.workflow.deployment.distribute.processor.state.DeploymentsStateController;
+import io.zeebe.broker.workflow.state.DeployedWorkflow;
+import io.zeebe.broker.workflow.state.ElementInstanceState;
+import io.zeebe.broker.workflow.state.NextValueManager;
+import io.zeebe.broker.workflow.state.TimerInstanceState;
+import io.zeebe.broker.workflow.state.WorkflowPersistenceCache;
+import io.zeebe.broker.workflow.state.WorkflowState;
+import io.zeebe.broker.workflow.state.WorkflowSubscription;
 import io.zeebe.protocol.impl.record.value.deployment.DeploymentRecord;
 import java.io.File;
 import java.util.Collection;
@@ -27,40 +20,30 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.agrona.DirectBuffer;
-import org.rocksdb.ColumnFamilyHandle;
 import org.rocksdb.RocksDB;
 
-public class WorkflowState extends KeyStateController {
-  private static final byte[] WORKFLOW_KEY_FAMILY_NAME = "workflowKey".getBytes();
-  private static final byte[] WORKFLOW_VERSION_FAMILY_NAME = "workflowVersion".getBytes();
-  public static final byte[][] COLUMN_FAMILY_NAMES = {
-    WORKFLOW_KEY_FAMILY_NAME, WORKFLOW_VERSION_FAMILY_NAME
-  };
+public class ZeebeState extends KeyStateController {
 
-  private static final byte[] LATEST_WORKFLOW_KEY = "latestWorkflowKey".getBytes();
-
-  public static List<byte[]> getColumnFamilyNames() {
-    return Stream.of(
-            COLUMN_FAMILY_NAMES,
-            WorkflowPersistenceCache.COLUMN_FAMILY_NAMES,
-            ElementInstanceState.COLUMN_FAMILY_NAMES,
-            SubscriptionState.COLUMN_FAMILY_NAMES,
-            TimerInstanceState.COLUMN_FAMILY_NAMES)
-        .flatMap(Stream::of)
-        .collect(Collectors.toList());
-  }
-
-  private ColumnFamilyHandle workflowKeyHandle;
-  private ColumnFamilyHandle workflowVersionHandle;
-  private NextValueManager nextValueManager;
-  private WorkflowPersistenceCache workflowPersistenceCache;
-  private SubscriptionState<WorkflowSubscription> subscriptionState;
-  private TimerInstanceState timerInstanceState;
-  private ElementInstanceState elementInstanceState;
+  private final DeploymentsStateController deploymentState = new DeploymentsStateController();
+  private final WorkflowState workflowState = new WorkflowState();
+  private final JobStateController jobState = new JobStateController();
+  private final MessageStateController messageState = new MessageStateController();
 
   @Override
   public RocksDB open(final File dbDirectory, final boolean reopen) throws Exception {
-    final List<byte[]> columnFamilyNames = getColumnFamilyNames();
+    final List<byte[]> familyNames = WorkflowState.getColumnFamilyNames();
+    familyNames.addAll(JobStateController.getColumnFamilyNames());
+    familyNames.addAll(MessageStateController.getColumnFamilyNames());
+
+    final List<byte[]> columnFamilyNames =
+        Stream.of(
+                COLUMN_FAMILY_NAMES,
+                WorkflowPersistenceCache.COLUMN_FAMILY_NAMES,
+                ElementInstanceState.COLUMN_FAMILY_NAMES,
+                SubscriptionState.COLUMN_FAMILY_NAMES,
+                TimerInstanceState.COLUMN_FAMILY_NAMES)
+            .flatMap(Stream::of)
+            .collect(Collectors.toList());
 
     final RocksDB rocksDB = super.open(dbDirectory, reopen, columnFamilyNames);
 
