@@ -508,6 +508,11 @@ public class StateController implements AutoCloseable {
     }
   }
 
+  public boolean exist(final ColumnFamilyHandle handle, long key) {
+    setLong(key);
+    return exist(handle, dbLongBuffer.byteArray(), 0, dbLongBuffer.capacity());
+  }
+
   public void remove(final byte[] key, final int offset, final int length) {
     try {
       RocksDbInternal.removeMethod.invoke(db, nativeHandle_, key, offset, length);
