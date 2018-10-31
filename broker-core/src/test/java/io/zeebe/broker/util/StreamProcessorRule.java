@@ -17,7 +17,10 @@
  */
 package io.zeebe.broker.util;
 
+import io.zeebe.broker.logstreams.processor.KeyGenerator;
+import io.zeebe.broker.logstreams.processor.TypedEventStreamProcessorBuilder;
 import io.zeebe.broker.logstreams.processor.TypedStreamEnvironment;
+import io.zeebe.broker.logstreams.state.ZeebeState;
 import io.zeebe.broker.topic.StreamProcessorControl;
 import io.zeebe.broker.transport.clientapi.BufferingServerOutput;
 import io.zeebe.broker.util.TestStreams.FluentLogWriter;
@@ -30,6 +33,7 @@ import io.zeebe.servicecontainer.testing.ServiceContainerRule;
 import io.zeebe.test.util.AutoCloseableRule;
 import io.zeebe.util.sched.clock.ControlledActorClock;
 import io.zeebe.util.sched.testing.ActorSchedulerRule;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.junit.rules.ExternalResource;
 import org.junit.rules.RuleChain;
@@ -42,11 +46,12 @@ public class StreamProcessorRule implements TestRule {
 
   public static final int PARTITION_ID = 0;
   // environment
-  private TemporaryFolder tempFolder = new TemporaryFolder();
-  private AutoCloseableRule closeables = new AutoCloseableRule();
-  private ControlledActorClock clock = new ControlledActorClock();
-  private ActorSchedulerRule actorSchedulerRule = new ActorSchedulerRule(clock);
-  private ServiceContainerRule serviceContainerRule = new ServiceContainerRule(actorSchedulerRule);
+  private final TemporaryFolder tempFolder = new TemporaryFolder();
+  private final AutoCloseableRule closeables = new AutoCloseableRule();
+  private final ControlledActorClock clock = new ControlledActorClock();
+  private final ActorSchedulerRule actorSchedulerRule = new ActorSchedulerRule(clock);
+  private final ServiceContainerRule serviceContainerRule =
+      new ServiceContainerRule(actorSchedulerRule);
 
   // things provisioned by this rule
   public static final String STREAM_NAME = "stream";
@@ -85,9 +90,32 @@ public class StreamProcessorRule implements TestRule {
     return control;
   }
 
+  public StreamProcessorControl runStreamProcessor(
+      BiFunction<TypedEventStreamProcessorBuilder, ZeebeState, StreamProcessor> factory) {
+    final StreamProcessorControl control = initStreamProcessor(factory);
+    control.start();
+    return control;
+  }
+
   public StreamProcessorControl initStreamProcessor(
       Function<TypedStreamEnvironment, StreamProcessor> factory) {
     return streams.initStreamProcessor(STREAM_NAME, 0, () -> factory.apply(streamEnvironment));
+  }
+
+  public StreamProcessorControl initStreamProcessor(
+      BiFunction<TypedEventStreamProcessorBuilder, ZeebeState, StreamProcessor> factory) {
+    return streams.initStreamProcessor(
+        STREAM_NAME,
+        0,
+        () -> {
+          final ZeebeState zeebeState = new ZeebeState();
+          final TypedEventStreamProcessorBuilder processorBuilder =
+              streamEnvironment
+                  .newStreamProcessor()
+                  .keyGenerator(KeyGenerator.createKeyGenerator(0, zeebeState))
+                  .withStateController(zeebeState);
+          return factory.apply(processorBuilder, zeebeState);
+        });
   }
 
   public ControlledActorClock getClock() {
