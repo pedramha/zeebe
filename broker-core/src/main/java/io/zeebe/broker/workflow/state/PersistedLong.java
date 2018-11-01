@@ -15,13 +15,35 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package io.zeebe.broker.workflow;
+package io.zeebe.broker.workflow.state;
 
-import io.zeebe.broker.workflow.repository.WorkflowRepositoryService;
-import io.zeebe.servicecontainer.ServiceName;
+import static io.zeebe.logstreams.rocksdb.ZeebeStateConstants.STATE_BYTE_ORDER;
 
-public class WorkflowServiceNames {
+import io.zeebe.util.buffer.BufferReader;
+import io.zeebe.util.buffer.BufferWriter;
+import org.agrona.DirectBuffer;
+import org.agrona.MutableDirectBuffer;
 
-  public static final ServiceName<WorkflowRepositoryService> WORKFLOW_REPOSITORY_SERVICE =
-      ServiceName.newServiceName("workflow.repository", WorkflowRepositoryService.class);
+public class PersistedLong implements BufferWriter, BufferReader {
+
+  private long value;
+
+  public long getValue() {
+    return value;
+  }
+
+  @Override
+  public void wrap(DirectBuffer buffer, int offset, int length) {
+    value = buffer.getLong(offset, STATE_BYTE_ORDER);
+  }
+
+  @Override
+  public int getLength() {
+    return Long.BYTES;
+  }
+
+  @Override
+  public void write(MutableDirectBuffer buffer, int offset) {
+    buffer.putLong(offset, value, STATE_BYTE_ORDER);
+  }
 }

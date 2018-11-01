@@ -37,6 +37,11 @@ public class TerminateElementHandler implements BpmnStepHandler<ExecutableFlowNo
 
     addTerminatingRecords(context, instanceWriter.getBatchWriter());
 
+    // TODO get from incident state via element instance key the incident key
+    // with incident key we write delete command
+    // if no incident key exist no incident exist -> nothing to do
+    //    context.getElementInstance().getKey()
+
     instanceWriter.writeFollowUpEvent(
         terminatingRecord.getKey(),
         WorkflowInstanceIntent.ELEMENT_TERMINATED,

@@ -19,6 +19,7 @@ package io.zeebe.broker.logstreams;
 
 import io.zeebe.broker.clustering.base.partitions.Partition;
 import io.zeebe.broker.clustering.base.topology.TopologyManager;
+import io.zeebe.broker.incident.processor.IncidentEventProcessors;
 import io.zeebe.broker.job.JobEventProcessors;
 import io.zeebe.broker.logstreams.processor.KeyGenerator;
 import io.zeebe.broker.logstreams.processor.StreamProcessorServiceFactory;
@@ -205,7 +206,7 @@ public class ZbStreamProcessorService implements Service<ZbStreamProcessorServic
       ZeebeState zeebeState,
       TypedStreamEnvironment streamEnvironment,
       TypedEventStreamProcessorBuilder typedProcessorBuilder) {
-    // TODO(zell): migrate incident stream processor - migrate state to rocks db first
+    IncidentEventProcessors.addProcessors(typedProcessorBuilder, zeebeState);
   }
 
   private void addJobProcessors(

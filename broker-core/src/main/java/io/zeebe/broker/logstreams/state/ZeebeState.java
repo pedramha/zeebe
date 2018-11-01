@@ -17,6 +17,7 @@
  */
 package io.zeebe.broker.logstreams.state;
 
+import io.zeebe.broker.incident.processor.IncidentState;
 import io.zeebe.broker.job.JobState;
 import io.zeebe.broker.subscription.message.state.MessageState;
 import io.zeebe.broker.util.KeyStateController;
@@ -32,6 +33,7 @@ public class ZeebeState extends KeyStateController {
   private final DeploymentsState deploymentState = new DeploymentsState();
   private final JobState jobState = new JobState();
   private final MessageState messageState = new MessageState();
+  private final IncidentState incidentState = new IncidentState();
 
   @Override
   public ZbRocksDb open(final File dbDirectory, final boolean reopen) throws Exception {
@@ -39,6 +41,7 @@ public class ZeebeState extends KeyStateController {
     columnFamilyNames.addAll(DeploymentsState.getColumnFamilyNames());
     columnFamilyNames.addAll(JobState.getColumnFamilyNames());
     columnFamilyNames.addAll(MessageState.getColumnFamilyNames());
+    columnFamilyNames.addAll(IncidentState.getColumnFamilyNames());
 
     final ZbRocksDb rocksDB = super.open(dbDirectory, reopen, columnFamilyNames);
 
@@ -46,6 +49,7 @@ public class ZeebeState extends KeyStateController {
     deploymentState.onOpened(this);
     jobState.onOpened(this);
     messageState.onOpened(this);
+    incidentState.onOpened(this);
 
     return rocksDB;
   }
@@ -64,5 +68,9 @@ public class ZeebeState extends KeyStateController {
 
   public MessageState getMessageState() {
     return messageState;
+  }
+
+  public IncidentState getIncidentState() {
+    return incidentState;
   }
 }
