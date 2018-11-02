@@ -37,6 +37,10 @@ import org.rocksdb.RocksDB;
  */
 public class VariableStateImpl implements VariableState, ScopeState, AutoCloseable {
 
+  // TODO: eine Idee für Optimierung:
+  // parent-child-Beziehungen so gestalten, dass die Einträge einer Workflowinstanz hintereinander
+  // in der RocksDB liegen
+
   // child scope key => parent scope key
   private static final byte[] CHILD_PARENT_FAMILY = "elementChildParent".getBytes();
   // (scope key, variable name) => (variable value)
