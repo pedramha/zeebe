@@ -47,6 +47,10 @@ public class BoundaryEventValidator implements ModelElementValidator<BoundaryEve
       validationResultCollector.addError(0, "Must have at least one outgoing sequence flow");
     }
 
+    if (!element.cancelActivity()) {
+      validationResultCollector.addError(0, "Non-interrupting boundary events are not supported");
+    }
+
     validateEventDefinition(element, validationResultCollector);
   }
 
